@@ -1,0 +1,4 @@
+name: ProxyTransport
+author: "NetherGamesMC - Tobias Grether"
+version: "1.0"
+main: org.nethergames.proxytransport.ProxyTransport
