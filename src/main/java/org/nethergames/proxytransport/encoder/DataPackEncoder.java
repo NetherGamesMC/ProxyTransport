@@ -1,9 +1,9 @@
-package org.nethergames.proxytransport.network.encoder;
+package org.nethergames.proxytransport.encoder;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToByteEncoder;
-import org.nethergames.proxytransport.network.wrapper.DataPack;
+import org.nethergames.proxytransport.wrapper.DataPack;
 
 public class DataPackEncoder extends MessageToByteEncoder<DataPack> {
 

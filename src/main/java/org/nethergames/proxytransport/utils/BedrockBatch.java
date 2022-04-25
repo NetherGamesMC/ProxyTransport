@@ -1,4 +1,4 @@
-package org.nethergames.proxytransport.network.utils;
+package org.nethergames.proxytransport.utils;
 
 import com.nukkitx.network.VarInts;
 import com.nukkitx.protocol.bedrock.BedrockPacket;
@@ -7,7 +7,7 @@ import com.nukkitx.protocol.bedrock.exception.PacketSerializeException;
 import dev.waterdog.waterdogpe.ProxyServer;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
-import org.nethergames.proxytransport.network.TransportDownstreamSession;
+import org.nethergames.proxytransport.impl.TransportDownstreamSession;
 
 import java.util.Collection;
 import java.util.Iterator;

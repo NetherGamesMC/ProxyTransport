@@ -1,10 +1,10 @@
-package org.nethergames.proxytransport.network.integration;
+package org.nethergames.proxytransport.integration;
 
 import dev.waterdog.waterdogpe.network.protocol.ProtocolVersion;
 import dev.waterdog.waterdogpe.network.serverinfo.ServerInfo;
 import dev.waterdog.waterdogpe.network.serverinfo.ServerInfoType;
 import dev.waterdog.waterdogpe.network.session.DownstreamClient;
-import org.nethergames.proxytransport.network.TransportDownstreamConnection;
+import org.nethergames.proxytransport.impl.TransportDownstreamConnection;
 
 import java.net.InetSocketAddress;
 

@@ -1,4 +1,4 @@
-package org.nethergames.proxytransport.network.encoder;
+package org.nethergames.proxytransport.encoder;
 
 import com.github.luben.zstd.Zstd;
 import io.netty.buffer.ByteBuf;

@@ -1,11 +1,10 @@
-package org.nethergames.proxytransport.network.decoder;
+package org.nethergames.proxytransport.decoder;
 
 import com.nukkitx.network.VarInts;
 import com.nukkitx.network.util.DisconnectReason;
 import com.nukkitx.protocol.bedrock.BedrockPacket;
 import com.nukkitx.protocol.bedrock.BedrockPacketCodec;
 import com.nukkitx.protocol.bedrock.exception.PacketSerializeException;
-import com.nukkitx.protocol.bedrock.packet.DisconnectPacket;
 import com.nukkitx.protocol.bedrock.packet.NetworkStackLatencyPacket;
 import com.nukkitx.protocol.util.Zlib;
 import dev.waterdog.waterdogpe.ProxyServer;
@@ -18,7 +17,7 @@ import io.netty.util.ReferenceCountUtil;
 import io.sentry.Sentry;
 import io.sentry.SentryEvent;
 import io.sentry.protocol.Message;
-import org.nethergames.proxytransport.network.TransportDownstreamSession;
+import org.nethergames.proxytransport.impl.TransportDownstreamSession;
 
 import java.util.ArrayList;
 import java.util.Collection;

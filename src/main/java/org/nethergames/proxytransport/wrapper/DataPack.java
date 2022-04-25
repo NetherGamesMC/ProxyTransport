@@ -1,4 +1,4 @@
-package org.nethergames.proxytransport.network.wrapper;
+package org.nethergames.proxytransport.wrapper;
 
 import io.netty.buffer.ByteBuf;
 import lombok.Getter;

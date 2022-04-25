@@ -1,4 +1,4 @@
-package org.nethergames.proxytransport.network;
+package org.nethergames.proxytransport.impl;
 
 import com.nukkitx.network.util.DisconnectReason;
 import com.nukkitx.protocol.bedrock.BedrockPacket;
@@ -25,12 +25,12 @@ import io.sentry.ISpan;
 import io.sentry.ITransaction;
 import io.sentry.SentryEvent;
 import io.sentry.SpanStatus;
-import org.nethergames.proxytransport.network.decoder.PacketDecoder;
-import org.nethergames.proxytransport.network.encoder.DataPackEncoder;
-import org.nethergames.proxytransport.network.encoder.ZStdEncoder;
-import org.nethergames.proxytransport.network.integration.CustomTransportBatchBridge;
-import org.nethergames.proxytransport.network.utils.BedrockBatch;
-import org.nethergames.proxytransport.network.wrapper.DataPack;
+import org.nethergames.proxytransport.decoder.PacketDecoder;
+import org.nethergames.proxytransport.encoder.DataPackEncoder;
+import org.nethergames.proxytransport.encoder.ZStdEncoder;
+import org.nethergames.proxytransport.integration.CustomTransportBatchBridge;
+import org.nethergames.proxytransport.utils.BedrockBatch;
+import org.nethergames.proxytransport.wrapper.DataPack;
 
 import java.net.InetSocketAddress;
 import java.util.ArrayList;

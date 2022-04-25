@@ -1,4 +1,4 @@
-package org.nethergames.proxytransport.network.integration;
+package org.nethergames.proxytransport.integration;
 
 import com.nukkitx.protocol.bedrock.BedrockPacket;
 import com.nukkitx.protocol.bedrock.BedrockSession;
@@ -6,7 +6,7 @@ import com.nukkitx.protocol.bedrock.handler.BatchHandler;
 import dev.waterdog.waterdogpe.network.bridge.TransferBatchBridge;
 import dev.waterdog.waterdogpe.player.ProxiedPlayer;
 import io.netty.buffer.ByteBuf;
-import org.nethergames.proxytransport.network.TransportDownstreamSession;
+import org.nethergames.proxytransport.impl.TransportDownstreamSession;
 
 import java.util.Collection;
 

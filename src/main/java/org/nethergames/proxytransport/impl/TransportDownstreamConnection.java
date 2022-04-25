@@ -1,4 +1,4 @@
-package org.nethergames.proxytransport.network;
+package org.nethergames.proxytransport.impl;
 
 import dev.waterdog.waterdogpe.network.protocol.ProtocolVersion;
 import dev.waterdog.waterdogpe.network.serverinfo.ServerInfo;
