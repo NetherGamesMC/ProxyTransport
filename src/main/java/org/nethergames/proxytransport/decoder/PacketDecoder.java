@@ -8,15 +8,11 @@ import com.nukkitx.protocol.bedrock.exception.PacketSerializeException;
 import com.nukkitx.protocol.bedrock.packet.NetworkStackLatencyPacket;
 import com.nukkitx.protocol.util.Zlib;
 import dev.waterdog.waterdogpe.ProxyServer;
-import dev.waterdog.waterdogpe.player.ProxiedPlayer;
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.ByteBufUtil;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.util.ReferenceCountUtil;
-import io.sentry.Sentry;
-import io.sentry.SentryEvent;
-import io.sentry.protocol.Message;
+import org.nethergames.proxytransport.ProxyTransport;
 import org.nethergames.proxytransport.impl.TransportDownstreamSession;
 
 import java.util.ArrayList;
@@ -47,7 +43,7 @@ public class PacketDecoder extends SimpleChannelInboundHandler<ByteBuf> {
             Zlib.RAW.inflate(compressed, decompressed, MAX_BUFFER_SIZE);
             decompressed.markReaderIndex();
 
-            if(skimByteBuf(codec, decompressed)){
+            if (skimByteBuf(codec, decompressed)) {
                 // What this does: "Skimming" the packet ids for rewritable ids makes it possible for us to
                 // detect whether rewrites are necessary without decoding the entire thing first.
                 this.session.getPlayer().getUpstream().sendWrapped(compressed, false);
@@ -77,18 +73,15 @@ public class PacketDecoder extends SimpleChannelInboundHandler<ByteBuf> {
                     }
                     packets.add(packet);
                 } catch (PacketSerializeException serializeException) {
-                    captureException(serializeException, this.session.getPlayer(), packetBuffer);
-
+                    ProxyTransport.getEventAdapter().downstreamException(this.session, serializeException, packetBuffer);
                     this.session.getPlayer().getLogger().error("Error while decoding a packet for " + this.session.getPlayer().getName(), serializeException);
-                    this.session.getPlayer().getLogger().warning("Error occurred whilst decoding packet", serializeException);
                 }
             }
             compressed.resetReaderIndex();
 
             this.session.getBatchHandler().handle(this.session.getPacketHandler(), compressed.retain(), packets);
         } catch (Throwable t) {
-
-            captureException(t, session.getPlayer(), null);
+            ProxyTransport.getEventAdapter().downstreamException(this.session, t, null);
             this.session.getPlayer().getLogger().error("Error while decoding a packet for " + this.session.getPlayer().getName(), t);
 
             throw new RuntimeException("Unable to inflate buffer data", t);
@@ -98,15 +91,15 @@ public class PacketDecoder extends SimpleChannelInboundHandler<ByteBuf> {
         }
     }
 
-    public boolean skimByteBuf(BedrockPacketCodec codec, ByteBuf buf){
+    public boolean skimByteBuf(BedrockPacketCodec codec, ByteBuf buf) {
         int readerIndex = buf.readerIndex();
         boolean found = false;
-        while(buf.isReadable()){
+        while (buf.isReadable()) {
             int length = VarInts.readUnsignedInt(buf); // length
             int currentReaderIndex = buf.readerIndex();
             int packetId = VarInts.readUnsignedInt(buf) & 1023; // packet id
             int nextReaderIndex = buf.readerIndex();
-            if(codec.getPacketDefinition(packetId) != null){
+            if (codec.getPacketDefinition(packetId) != null) {
                 found = true;
                 break;
             }
@@ -117,8 +110,9 @@ public class PacketDecoder extends SimpleChannelInboundHandler<ByteBuf> {
         return found;
     }
 
-    private void captureException(Throwable t, ProxiedPlayer p, ByteBuf causingBuffer) {
+    /*private void captureException(Throwable t, ProxiedPlayer p, ByteBuf causingBuffer) {
         ProxiedPlayer player = this.session.getPlayer();
+
         SentryEvent event = new SentryEvent();
         this.session.attachCurrentTransaction(event);
         event.setThrowable(t);
@@ -130,7 +124,7 @@ public class PacketDecoder extends SimpleChannelInboundHandler<ByteBuf> {
 
 
         Sentry.captureEvent(event);
-    }
+    }*/
 
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
@@ -141,13 +135,15 @@ public class PacketDecoder extends SimpleChannelInboundHandler<ByteBuf> {
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-        SentryEvent event = new SentryEvent();
+       /* SentryEvent event = new SentryEvent();
         Message msg = new Message();
         msg.setMessage("Pipeline exception for player " + this.session.getPlayer().getName());
         event.setMessage(msg);
         event.setThrowable(cause);
 
-        Sentry.captureEvent(event);
+        Sentry.captureEvent(event);*/
+
+        ProxyTransport.getEventAdapter().downstreamException(this.session, cause, null);
 
         this.session.getPlayer().getLogger().error("Pipeline threw exception for player " + this.session.getPlayer().getName(), cause);
         this.session.disconnect(DisconnectReason.BAD_PACKET);

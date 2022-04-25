@@ -21,10 +21,7 @@ import io.netty.channel.EventLoop;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.netty.handler.codec.LengthFieldPrepender;
 import io.netty.util.ReferenceCounted;
-import io.sentry.ISpan;
-import io.sentry.ITransaction;
-import io.sentry.SentryEvent;
-import io.sentry.SpanStatus;
+import org.nethergames.proxytransport.ProxyTransport;
 import org.nethergames.proxytransport.decoder.PacketDecoder;
 import org.nethergames.proxytransport.encoder.DataPackEncoder;
 import org.nethergames.proxytransport.encoder.ZStdEncoder;
@@ -61,7 +58,6 @@ public class TransportDownstreamSession implements dev.waterdog.waterdogpe.netwo
     private final Channel channel;
     private final ChannelPromise voidPromise;
     private final List<Consumer<DisconnectReason>> disconnectHandlers = new ArrayList<>();
-    private final ITransaction sentryTransaction;
     private BedrockPacketHandler packetHandler;
     private AbstractDownstreamBatchBridge batchHandler;
     private ProxiedPlayer player;
@@ -69,23 +65,22 @@ public class TransportDownstreamSession implements dev.waterdog.waterdogpe.netwo
     private ScheduledFuture<?> pingFuture;
     private ScheduledFuture<?> limitResetFuture;
     private long latency = -1;
-    private ISpan currentSpan;
 
-    public TransportDownstreamSession(Channel channel, DownstreamClient client, ITransaction transaction) {
+    public TransportDownstreamSession(Channel channel, DownstreamClient client) {
         this.channel = channel;
         this.voidPromise = channel.voidPromise();
         this.client = client;
-        this.sentryTransaction = transaction;
         this.configurePipeline(this.channel);
     }
 
     @Override
     public void onDownstreamInit(ProxiedPlayer proxiedPlayer, boolean initial) {
-        sentryTransaction.setTag("user", "id:" + proxiedPlayer.getXuid());
+        ProxyTransport.getEventAdapter().downstreamInitialized(this, proxiedPlayer, initial);
+       /* sentryTransaction.setTag("user", "id:" + proxiedPlayer.getXuid());
         sentryTransaction.setData("loginData", proxiedPlayer.getLoginData());
 
         ISpan span = this.sentryTransaction.startChild("downstream-init");
-        span.setData("isInitial", initial);
+        span.setData("isInitial", initial);*/
 
         this.player = proxiedPlayer;
 
@@ -93,24 +88,25 @@ public class TransportDownstreamSession implements dev.waterdog.waterdogpe.netwo
         this.limitResetFuture = focusedResetTimer.scheduleAtFixedRate(() -> this.packetSendingLimit.set(0), 1, 1, TimeUnit.SECONDS);
 
         if (initial) {
-            currentSpan = sentryTransaction.startChild("start-game");
+            //currentSpan = sentryTransaction.startChild("start-game");
             this.setPacketHandler(new InitialHandler(proxiedPlayer, this.client));
             this.setBatchHandler(new BedrockDownstreamBridge(player, player.getUpstream()));
         } else {
-            currentSpan = sentryTransaction.startChild("connect-switch");
+            //currentSpan = sentryTransaction.startChild("connect-switch");
             this.setPacketHandler(new SwitchDownstreamHandler(player, this.client));
             this.setBatchHandler(new CustomTransportBatchBridge(player, this, player.getUpstream()));
             this.addDisconnectHandler(reason -> TransferBatchBridge.release(this.getBatchHandler()));
         }
 
-        span.finish(SpanStatus.OK);
+       // span.finish(SpanStatus.OK);
     }
 
     @Override
     public void onInitialServerConnected(ProxiedPlayer proxiedPlayer) {
         this.setPacketHandler(new ConnectedDownstreamHandler(player, this.client));
-        currentSpan.finish(SpanStatus.OK);
-        this.sentryTransaction.finish(SpanStatus.OK);
+        ProxyTransport.getEventAdapter().initialServerConnected(this);
+        /*currentSpan.finish(SpanStatus.OK);
+        this.sentryTransaction.finish(SpanStatus.OK);*/
     }
 
     @Override
@@ -146,8 +142,10 @@ public class TransportDownstreamSession implements dev.waterdog.waterdogpe.netwo
         }
         callback.run();
 
-        currentSpan.finish(SpanStatus.OK);
-        this.sentryTransaction.finish(SpanStatus.OK);
+        ProxyTransport.getEventAdapter().transferCompleted(this);
+
+       /* currentSpan.finish(SpanStatus.OK);
+        this.sentryTransaction.finish(SpanStatus.OK);*/
     }
 
     @Override
@@ -203,12 +201,6 @@ public class TransportDownstreamSession implements dev.waterdog.waterdogpe.netwo
             this.channel.writeAndFlush(pack, this.voidPromise);
         } finally {
             buf.release();
-        }
-    }
-
-    public void attachCurrentTransaction(SentryEvent event) {
-        if (this.currentSpan != null && !this.currentSpan.isFinished()) {
-            event.setTransaction(this.currentSpan.getSpanContext().getSpanId().toString());
         }
     }
 

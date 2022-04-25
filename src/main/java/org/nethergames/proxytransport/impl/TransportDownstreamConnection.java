@@ -14,11 +14,8 @@ import io.netty.channel.epoll.EpollSocketChannel;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
-import io.sentry.ISpan;
-import io.sentry.ITransaction;
-import io.sentry.Sentry;
-import io.sentry.SpanStatus;
 import net.jodah.expiringmap.internal.NamedThreadFactory;
+import org.nethergames.proxytransport.ProxyTransport;
 
 import java.net.InetSocketAddress;
 import java.util.concurrent.CompletableFuture;
@@ -63,23 +60,23 @@ public class TransportDownstreamConnection implements DownstreamClient {
 
     @Override
     public CompletableFuture<dev.waterdog.waterdogpe.network.session.DownstreamSession> connect(InetSocketAddress inetSocketAddress, long l, TimeUnit timeUnit) {
-        ITransaction transaction = Sentry.startTransaction("downstream-connect", "setup", true);
+        ProxyTransport.getEventAdapter().connectionInitialized(inetSocketAddress, this.serverInfo);
+        /*ITransaction transaction = Sentry.startTransaction("downstream-connect", "setup", true);
         transaction.setData("targetAddress", inetSocketAddress.toString());
         transaction.setData("targetServer", this.serverInfo.getServerName());
         transaction.setData("targetServerType", this.serverInfo.getServerType());
-        ISpan connectSpan = transaction.startChild("establish-connection");
+        ISpan connectSpan = transaction.startChild("establish-connection");*/
         CompletableFuture<dev.waterdog.waterdogpe.network.session.DownstreamSession> future = new CompletableFuture<>();
         this.channelBootstrap.connect().addListener(f -> {
             ChannelFuture cF = (ChannelFuture) f;
             if (cF.isSuccess()) {
-                connectSpan.finish(SpanStatus.OK);
-                this.session = new TransportDownstreamSession(cF.channel(), this, transaction);
+                this.session = new TransportDownstreamSession(cF.channel(), this);
                 future.complete(this.session);
             } else {
-                connectSpan.setThrowable(f.cause());
-                connectSpan.finish(SpanStatus.INTERNAL_ERROR);
                 future.completeExceptionally(f.cause());
             }
+
+            ProxyTransport.getEventAdapter().connectionComplete(this.session, f.cause());
         });
 
         return future;
