@@ -40,7 +40,7 @@ public class PacketDecoder extends SimpleChannelInboundHandler<ByteBuf> {
     @Override
     protected void channelRead0(ChannelHandlerContext channelHandlerContext, ByteBuf compressed) {
         Collection<BedrockPacket> packets = new ArrayList<>();
-
+        BedrockPacketCodec codec = this.session.getPlayer().getProtocol().getCodec();
         ByteBuf decompressed = null;
         try {
             compressed.markReaderIndex();
@@ -48,7 +48,14 @@ public class PacketDecoder extends SimpleChannelInboundHandler<ByteBuf> {
             Zlib.RAW.inflate(compressed, decompressed, MAX_BUFFER_SIZE);
             decompressed.markReaderIndex();
 
-            BedrockPacketCodec codec = this.session.getPlayer().getProtocol().getCodec();
+            if(skimByteBuf(codec, decompressed)){
+                // What this does: "Skimming" the packet ids for rewritable ids makes it possible for us to
+                // detect whether rewrites are necessary without decoding the entire thing first.
+                this.session.getPlayer().getUpstream().sendWrapped(compressed, false);
+                return;
+            }
+
+
             while (decompressed.isReadable()) {
                 int length = VarInts.readUnsignedInt(decompressed);
                 ByteBuf packetBuffer = decompressed.readSlice(length);
@@ -95,6 +102,24 @@ public class PacketDecoder extends SimpleChannelInboundHandler<ByteBuf> {
             ReferenceCountUtil.safeRelease(compressed);
             ReferenceCountUtil.safeRelease(decompressed);
         }
+    }
+
+    public boolean skimByteBuf(BedrockPacketCodec codec, ByteBuf buf){
+        int readerIndex = buf.readerIndex();
+        while(buf.isReadable()){
+            int length = VarInts.readUnsignedInt(buf); // length
+            int currentReaderIndex = buf.readerIndex();
+            int packetId = VarInts.readUnsignedInt(buf) & 1023; // packet id
+            int nextReaderIndex = buf.readerIndex();
+            if(codec.getPacketDefinition(packetId) != null){
+                buf.readerIndex(readerIndex);
+                return true;
+            }
+
+            buf.skipBytes(length - (nextReaderIndex - currentReaderIndex)); // skip all the remaining bytes of this packet
+        }
+
+        return false;
     }
 
     private void captureException(Throwable t, ProxiedPlayer p, ByteBuf causingBuffer) {
