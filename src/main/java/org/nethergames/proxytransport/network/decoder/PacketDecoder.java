@@ -101,20 +101,21 @@ public class PacketDecoder extends SimpleChannelInboundHandler<ByteBuf> {
 
     public boolean skimByteBuf(BedrockPacketCodec codec, ByteBuf buf){
         int readerIndex = buf.readerIndex();
+        boolean found = false;
         while(buf.isReadable()){
             int length = VarInts.readUnsignedInt(buf); // length
             int currentReaderIndex = buf.readerIndex();
             int packetId = VarInts.readUnsignedInt(buf) & 1023; // packet id
             int nextReaderIndex = buf.readerIndex();
             if(codec.getPacketDefinition(packetId) != null){
-                buf.readerIndex(readerIndex);
-                return true;
+                found = true;
+                break;
             }
 
             buf.skipBytes(length - (nextReaderIndex - currentReaderIndex)); // skip all the remaining bytes of this packet
         }
-
-        return false;
+        buf.readerIndex(readerIndex);
+        return found;
     }
 
     private void captureException(Throwable t, ProxiedPlayer p, ByteBuf causingBuffer) {
