@@ -71,11 +71,6 @@ public class PacketDecoder extends SimpleChannelInboundHandler<ByteBuf> {
                     packet.setSenderId(header >>> 10 & 3);
                     packet.setClientId(header >>> 12 & 3);
 
-                    if (packet instanceof DisconnectPacket) {
-                        if (((DisconnectPacket) packet).isMessageSkipped() || ((DisconnectPacket) packet).getKickMessage() == null) {
-                            continue;
-                        }
-                    }
                     if (packet instanceof NetworkStackLatencyPacket) {
                         if (((NetworkStackLatencyPacket) packet).getTimestamp() == 0) {
                             this.session.handleNetworkStackPacket();
