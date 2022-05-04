@@ -18,9 +18,9 @@ jobs:
         with:
           java-version: 11
           distribution: microsoft
-      - name: "Print env variables"
-        run: env
-
+      - name: "safe branch name"
+        id: branch
+        run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF_NAME})"
       - name: Build ProxyTransport
         run: mvn -B install --file pom.xml
       - name: Create and Publish Release
@@ -28,6 +28,6 @@ jobs:
         with:
           allowUpdates: true
           body: ""
-          tag: "${GITHUB_REF#refs/heads/}"
+          tag: "${{ steps.branch.outputs.branch }}"
           name: "${{ github.event.head_commit.message }}"
           artifacts: "target/proxy-transport-1.0.jar"
