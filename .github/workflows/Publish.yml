@@ -18,6 +18,9 @@ jobs:
         with:
           java-version: 11
           distribution: microsoft
+      - name: "Print env variables"
+        run: env
+
       - name: Build ProxyTransport
         run: mvn -B install --file pom.xml
       - name: Create and Publish Release
@@ -25,6 +28,6 @@ jobs:
         with:
           allowUpdates: true
           body: ""
-          tag: "${{ github.head_ref }}"
+          tag: "${GITHUB_REF#refs/heads/}"
           name: "${{ github.event.head_commit.message }}"
           artifacts: "target/proxy-transport-1.0.jar"
