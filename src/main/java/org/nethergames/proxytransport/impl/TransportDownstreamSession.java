@@ -76,11 +76,6 @@ public class TransportDownstreamSession implements dev.waterdog.waterdogpe.netwo
     @Override
     public void onDownstreamInit(ProxiedPlayer proxiedPlayer, boolean initial) {
         ProxyTransport.getEventAdapter().downstreamInitialized(this, proxiedPlayer, initial);
-       /* sentryTransaction.setTag("user", "id:" + proxiedPlayer.getXuid());
-        sentryTransaction.setData("loginData", proxiedPlayer.getLoginData());
-
-        ISpan span = this.sentryTransaction.startChild("downstream-init");
-        span.setData("isInitial", initial);*/
 
         this.player = proxiedPlayer;
 
@@ -88,25 +83,19 @@ public class TransportDownstreamSession implements dev.waterdog.waterdogpe.netwo
         this.limitResetFuture = focusedResetTimer.scheduleAtFixedRate(() -> this.packetSendingLimit.set(0), 1, 1, TimeUnit.SECONDS);
 
         if (initial) {
-            //currentSpan = sentryTransaction.startChild("start-game");
             this.setPacketHandler(new InitialHandler(proxiedPlayer, this.client));
             this.setBatchHandler(new BedrockDownstreamBridge(player, player.getUpstream()));
         } else {
-            //currentSpan = sentryTransaction.startChild("connect-switch");
             this.setPacketHandler(new SwitchDownstreamHandler(player, this.client));
             this.setBatchHandler(new CustomTransportBatchBridge(player, this, player.getUpstream()));
             this.addDisconnectHandler(reason -> TransferBatchBridge.release(this.getBatchHandler()));
         }
-
-       // span.finish(SpanStatus.OK);
     }
 
     @Override
     public void onInitialServerConnected(ProxiedPlayer proxiedPlayer) {
         this.setPacketHandler(new ConnectedDownstreamHandler(player, this.client));
         ProxyTransport.getEventAdapter().initialServerConnected(this);
-        /*currentSpan.finish(SpanStatus.OK);
-        this.sentryTransaction.finish(SpanStatus.OK);*/
     }
 
     @Override

@@ -61,11 +61,6 @@ public class TransportDownstreamConnection implements DownstreamClient {
     @Override
     public CompletableFuture<dev.waterdog.waterdogpe.network.session.DownstreamSession> connect(InetSocketAddress inetSocketAddress, long l, TimeUnit timeUnit) {
         ProxyTransport.getEventAdapter().connectionInitialized(inetSocketAddress, this.serverInfo);
-        /*ITransaction transaction = Sentry.startTransaction("downstream-connect", "setup", true);
-        transaction.setData("targetAddress", inetSocketAddress.toString());
-        transaction.setData("targetServer", this.serverInfo.getServerName());
-        transaction.setData("targetServerType", this.serverInfo.getServerType());
-        ISpan connectSpan = transaction.startChild("establish-connection");*/
         CompletableFuture<dev.waterdog.waterdogpe.network.session.DownstreamSession> future = new CompletableFuture<>();
         this.channelBootstrap.connect().addListener(f -> {
             ChannelFuture cF = (ChannelFuture) f;

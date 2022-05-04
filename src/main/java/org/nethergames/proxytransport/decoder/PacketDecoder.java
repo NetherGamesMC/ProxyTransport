@@ -110,22 +110,6 @@ public class PacketDecoder extends SimpleChannelInboundHandler<ByteBuf> {
         return found;
     }
 
-    /*private void captureException(Throwable t, ProxiedPlayer p, ByteBuf causingBuffer) {
-        ProxiedPlayer player = this.session.getPlayer();
-
-        SentryEvent event = new SentryEvent();
-        this.session.attachCurrentTransaction(event);
-        event.setThrowable(t);
-        event.setExtra("dimensionSwitchState", player.getDimensionChangeState());
-        event.setExtra("latency", player.getPing());
-        if (causingBuffer != null) {
-            event.setExtra("packetBuffer", ByteBufUtil.prettyHexDump(causingBuffer.readerIndex(0)));
-        }
-
-
-        Sentry.captureEvent(event);
-    }*/
-
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
         super.channelInactive(ctx);
@@ -135,14 +119,6 @@ public class PacketDecoder extends SimpleChannelInboundHandler<ByteBuf> {
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-       /* SentryEvent event = new SentryEvent();
-        Message msg = new Message();
-        msg.setMessage("Pipeline exception for player " + this.session.getPlayer().getName());
-        event.setMessage(msg);
-        event.setThrowable(cause);
-
-        Sentry.captureEvent(event);*/
-
         ProxyTransport.getEventAdapter().downstreamException(this.session, cause, null);
 
         this.session.getPlayer().getLogger().error("Pipeline threw exception for player " + this.session.getPlayer().getName(), cause);
