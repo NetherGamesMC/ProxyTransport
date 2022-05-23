@@ -13,6 +13,14 @@
         <maven.compiler.target>11</maven.compiler.target>
     </properties>
 
+    <distributionManagement>
+        <repository>
+            <id>nethergamesmc</id>
+            <name>NetherGames target repository</name>
+            <url>https://repo.nethergames.org/repository/NetherGamesMC/</url>
+        </repository>
+    </distributionManagement>
+
     <repositories>
         <repository>
             <id>waterdog-repo</id>
