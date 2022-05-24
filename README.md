@@ -10,7 +10,7 @@ From the [internal documentation:](https://outline.nethergames.org/share/d44f104
 Packet frames have the following format:
 
 - frameLength: int
-- leadingByte: byte (compression indicator. 1 is Zlib, 2 is ZSTD)
+- leadingByte: byte (compression indicator. 0 is Zlib, 1 is ZSTD)
 - buffer: ByteBuf (the packets are formatted in the MCPE batch packet format)
 
 ## Dynamic Compression
