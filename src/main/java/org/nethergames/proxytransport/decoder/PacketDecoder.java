@@ -9,14 +9,18 @@ import com.nukkitx.protocol.bedrock.packet.NetworkStackLatencyPacket;
 import com.nukkitx.protocol.util.Zlib;
 import dev.waterdog.waterdogpe.ProxyServer;
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufUtil;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.util.ReferenceCountUtil;
 import org.nethergames.proxytransport.ProxyTransport;
 import org.nethergames.proxytransport.impl.TransportDownstreamSession;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.UUID;
 import java.util.zip.DataFormatException;
 
 /**
@@ -27,6 +31,7 @@ public class PacketDecoder extends SimpleChannelInboundHandler<ByteBuf> {
     private final static int MAX_BUFFER_SIZE = 4 * 1024 * 1024;
 
     private final TransportDownstreamSession session;
+    private final Logger debugLogger = LoggerFactory.getLogger("DebugLogger");
 
     public PacketDecoder(TransportDownstreamSession session) {
         this.session = session;
@@ -42,14 +47,6 @@ public class PacketDecoder extends SimpleChannelInboundHandler<ByteBuf> {
             decompressed = channelHandlerContext.alloc().buffer();
             Zlib.RAW.inflate(compressed, decompressed, MAX_BUFFER_SIZE);
             decompressed.markReaderIndex();
-
-            if (skimByteBuf(codec, decompressed)) {
-                // What this does: "Skimming" the packet ids for rewritable ids makes it possible for us to
-                // detect whether rewrites are necessary without decoding the entire thing first.
-                this.session.getPlayer().getUpstream().sendWrapped(compressed, false);
-                return;
-            }
-
 
             while (decompressed.isReadable()) {
                 int length = VarInts.readUnsignedInt(decompressed);
@@ -82,8 +79,12 @@ public class PacketDecoder extends SimpleChannelInboundHandler<ByteBuf> {
             this.session.getBatchHandler().handle(this.session.getPacketHandler(), compressed.retain(), packets);
         } catch (Throwable t) {
             ProxyTransport.getEventAdapter().downstreamException(this.session, t, null);
+            this.debugLogger.warn("Debug data for {} (playerVersion={}, codecVersion={}, totalFrameSizeCompressed={})", this.session.getPlayer().getName(), this.session.getPlayer().getProtocol().getProtocol(), codec.getProtocolVersion(), compressed.readableBytes());
             this.session.getPlayer().getLogger().error("Error while decoding a packet for " + this.session.getPlayer().getName(), t);
-
+            String id = UUID.randomUUID().toString();
+            if(ProxyTransport.getEventAdapter().bufferDump(id, ByteBufUtil.prettyHexDump(compressed))){
+                debugLogger.info("Packet dump for {} saved with id {}", session.getPlayer().getName(), id);
+            }
             throw new RuntimeException("Unable to inflate buffer data", t);
         } finally {
             ReferenceCountUtil.safeRelease(compressed);

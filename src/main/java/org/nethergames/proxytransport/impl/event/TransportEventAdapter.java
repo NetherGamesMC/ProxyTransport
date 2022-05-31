@@ -15,4 +15,5 @@ public interface TransportEventAdapter {
     public void initialServerConnected(DownstreamSession session);
     public void transferCompleted(DownstreamSession session);
     public void downstreamException(DownstreamSession session, Throwable t, @Nullable ByteBuf origin);
+    public boolean bufferDump(String id, String bufferDump);
 }
