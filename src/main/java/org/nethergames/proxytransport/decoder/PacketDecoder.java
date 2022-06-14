@@ -19,6 +19,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collection;
 import java.util.UUID;
 import java.util.zip.DataFormatException;
@@ -82,7 +83,13 @@ public class PacketDecoder extends SimpleChannelInboundHandler<ByteBuf> {
             this.debugLogger.warn("Debug data for {} (playerVersion={}, codecVersion={}, totalFrameSizeCompressed={})", this.session.getPlayer().getName(), this.session.getPlayer().getProtocol().getProtocol(), codec.getProtocolVersion(), compressed.readableBytes());
             this.session.getPlayer().getLogger().error("Error while decoding a packet for " + this.session.getPlayer().getName(), t);
             String id = UUID.randomUUID().toString();
-            if(ProxyTransport.getEventAdapter().bufferDump(id, ByteBufUtil.prettyHexDump(compressed))){
+            StringBuilder builder = new StringBuilder();
+            builder.append(ByteBufUtil.prettyHexDump(compressed));
+
+            builder.append("======== Begin Of Base64 data ========");
+            builder.append(Base64.getEncoder().encodeToString(compressed.array()));
+            String formattedDump = builder.toString();
+            if(ProxyTransport.getEventAdapter().bufferDump(id, formattedDump)){
                 debugLogger.info("Packet dump for {} saved with id {}", session.getPlayer().getName(), id);
             }
             throw new RuntimeException("Unable to inflate buffer data", t);
