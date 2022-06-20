@@ -1,11 +1,12 @@
 package org.nethergames.proxytransport;
 
 import dev.waterdog.waterdogpe.plugin.Plugin;
+import org.nethergames.proxytransport.impl.event.NOOPEventAdapter;
 import org.nethergames.proxytransport.impl.event.TransportEventAdapter;
 import org.nethergames.proxytransport.integration.CustomTransportServerInfo;
 
 public class ProxyTransport extends Plugin {
-    private static TransportEventAdapter eventAdapter;
+    private static TransportEventAdapter eventAdapter = new NOOPEventAdapter();
 
     @Override
     public void onEnable() {
