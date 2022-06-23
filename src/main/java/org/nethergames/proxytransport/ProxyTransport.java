@@ -9,9 +9,13 @@ public class ProxyTransport extends Plugin {
     private static TransportEventAdapter eventAdapter = new NOOPEventAdapter();
 
     @Override
-    public void onEnable() {
+    public void onStartup() {
         getProxy().getServerInfoMap().removeServerInfoType(CustomTransportServerInfo.TYPE);
         getProxy().getServerInfoMap().registerServerInfoFactory(CustomTransportServerInfo.TYPE, CustomTransportServerInfo::new);
+    }
+    
+    @Override
+    public void onEnable() {
     }
 
     public static TransportEventAdapter getEventAdapter() {
