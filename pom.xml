@@ -6,7 +6,7 @@
 
     <groupId>org.nethergames.proxytransport</groupId>
     <artifactId>proxy-transport</artifactId>
-    <version>1.1</version>
+    <version>1.2</version>
 
     <properties>
         <maven.compiler.source>17</maven.compiler.source>
