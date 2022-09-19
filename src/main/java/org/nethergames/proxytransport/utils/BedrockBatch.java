@@ -61,19 +61,4 @@ public class BedrockBatch {
             packetBuffer.release();
         }
     }
-
-    /*
-    private static void preallocatedWrite(ByteBuf buf, int value) {
-        int previousBufferPosition = buf.writerIndex(); // Get the position where it starts the write
-
-        VarInts.writeUnsignedInt(buf, value); // write the varint
-
-        int written = (buf.writerIndex() - previousBufferPosition); // see how many bytes the VarInt took
-        buf.readerIndex(previousBufferPosition); // reset the reader index to the beginning of the write
-        for (int i = 0; i < written; i++) {
-            if (buf.readByte() == 0) { // replace every 0 byte with 0x80, indicating that there is more to be read
-                buf.writeByte(0x80); // Padding byte, indicates that there is more data to be read
-            }
-        }
-    }*/
 }
