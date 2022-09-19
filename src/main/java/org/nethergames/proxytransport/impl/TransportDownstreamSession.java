@@ -66,6 +66,16 @@ public class TransportDownstreamSession implements dev.waterdog.waterdogpe.netwo
     private ScheduledFuture<?> pingFuture;
     private ScheduledFuture<?> limitResetFuture;
     private long latency = -1;
+    /**
+     * This indicates what compression algorithm all unchanged (unrewritten) packets are going to be using. This has to be what the client sends since the buffers are relayed
+     **/
+    private DataPack.CompressionType sessionNativeCompressionAlgo;
+
+    /**
+     * This is the compression algorithm that the downstream server is using to send packets to the client.
+     * IMPORTANT!: sessionNativeCompressionAlgo and serverNativeCompressionAlgo should ideally match to avoid recompression of packets.
+     */
+    private CompressionAlgorithm serverNativeCompressionAlgo;
 
     public TransportDownstreamSession(Channel channel, DownstreamClient client) {
         this.channel = channel;
@@ -74,11 +84,13 @@ public class TransportDownstreamSession implements dev.waterdog.waterdogpe.netwo
         this.configurePipeline(this.channel);
     }
 
+
     @Override
     public void onDownstreamInit(ProxiedPlayer proxiedPlayer, boolean initial) {
-        ProxyTransport.getEventAdapter().downstreamInitialized(this, proxiedPlayer, initial);
 
         this.player = proxiedPlayer;
+        this.sessionNativeCompressionAlgo = DataPack.CompressionType.fromInternal(proxiedPlayer.getUpstreamCompression());
+        ProxyTransport.getEventAdapter().downstreamInitialized(this, proxiedPlayer, initial);
 
         this.pingFuture = this.getChannel().eventLoop().scheduleAtFixedRate(this::determinePing, PING_CYCLE_TIME, PING_CYCLE_TIME, TimeUnit.SECONDS);
         this.limitResetFuture = focusedResetTimer.scheduleAtFixedRate(() -> this.packetSendingLimit.set(0), 1, 1, TimeUnit.SECONDS);
@@ -156,7 +168,6 @@ public class TransportDownstreamSession implements dev.waterdog.waterdogpe.netwo
         } finally {
             encoded.release();
         }
-
     }
 
     private void releasePackets(Collection<BedrockPacket> collection) {
@@ -208,12 +219,12 @@ public class TransportDownstreamSession implements dev.waterdog.waterdogpe.netwo
 
     @Override
     public CompressionAlgorithm getCompression() {
-        return null;
+        return this.serverNativeCompressionAlgo;
     }
 
     @Override
     public void setCompression(CompressionAlgorithm compressionAlgorithm) {
-
+        this.serverNativeCompressionAlgo = compressionAlgorithm;
     }
 
     @Override
@@ -241,7 +252,7 @@ public class TransportDownstreamSession implements dev.waterdog.waterdogpe.netwo
             return;
         }
 
-        DataPack pack = new DataPack(DataPack.CompressionType.METHOD_ZLIB, byteBuf.retain());
+        DataPack pack = new DataPack(this.sessionNativeCompressionAlgo, byteBuf.retain());
 
         this.channel.writeAndFlush(pack);
     }

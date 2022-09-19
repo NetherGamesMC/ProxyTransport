@@ -1,5 +1,6 @@
 package org.nethergames.proxytransport.wrapper;
 
+import dev.waterdog.waterdogpe.network.session.CompressionAlgorithm;
 import io.netty.buffer.ByteBuf;
 import lombok.Getter;
 
@@ -19,6 +20,17 @@ public class DataPack {
 
     public enum CompressionType {
         METHOD_ZLIB,
-        METHOD_ZSTD
+        METHOD_ZSTD,
+        METHOD_SNAPPY;
+
+        public static CompressionType fromInternal(CompressionAlgorithm type) {
+            switch (type.getBedrockCompression()) {
+                case SNAPPY:
+                    return CompressionType.METHOD_SNAPPY;
+                case ZLIB:
+                default:
+                    return CompressionType.METHOD_ZLIB;
+            }
+        }
     }
 }

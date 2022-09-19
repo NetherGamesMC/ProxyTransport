@@ -18,16 +18,27 @@ Packet frames have the following format:
 The `leadingByte` (internally referred to as `compressionType`) gives us the ability to use faster compression methods
 than zlib if possible.
 
-### When Zstd is being used:
+### Compression
+ProxyTransport leverages different compression algorithms to improve bandwidth usage and CPU Usage.
+The three algorithms supported are: Zlib, Zstd, Snappy
 
-A client-sent packet has been altered by the rewrite protocol and the entire buffer has to be re-compressed. Since Zstd
-has faster compression types, we use it here.
+#### General rule
+Packets are bi-directional. A packet can be sent from the client (or proxy) to the downstream server (Serverbound) or from the downstream server to the client (Clientbound).
 
-### When Zlib is being used:
+Since the 1.19.30 update, the client can use both the Zlib and the Snappy compression, the proxy can dictate which one to use.
+For clients < 1.19.30, zlib is the only option.
 
-A client-sent packet has not been altered, the original buffer is directly relayed to the downstream server to save us
-the compression.
+The following rules apply:
 
-The downstream-server sends to the client. We use zlib so that we can send the initial buffer directly in case we do not
-modify the packets.
+- Serverbound:
+  - **Unrewritten** packet batches are unchanged. They use the compression that the proxy dictated to the client and may be recompressed if the compressions differ.
+  - **Rewritten** packet batches are re-compressed using Zstd.
+- Clientbound:
+  - Packets have to be sent in the compression of the client from the downstream server, otherwise every packet batch will have to be recompressed.
+    That is possible, however not desired since it will cause notable overhead.
 
+The proxy receives and matches the NetworkSettingsPacket from the Downstream server to decide whether recompression is necessary.
+
+For every session two values are maintained: the clientNativeCompressionAlgo and the serverNativeCompressionAlgo.
+
+The clientNative algorithm is the algorithm that the client uses to send packets to the server. The server native algorithm is what the server uses to send to the client.
