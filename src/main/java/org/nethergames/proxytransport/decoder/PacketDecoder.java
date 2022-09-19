@@ -49,7 +49,7 @@ public class PacketDecoder extends SimpleChannelInboundHandler<ByteBuf> {
             compressed.markReaderIndex();
             decompressed = channelHandlerContext.alloc().buffer();
 
-            switch(this.session.getPlayer().getUpstreamCompression().getBedrockCompression()){
+            switch(this.session.getCompression().getBedrockCompression()){
                 case ZLIB:
                     Zlib.RAW.inflate(compressed, decompressed, MAX_BUFFER_SIZE);
                     break;
