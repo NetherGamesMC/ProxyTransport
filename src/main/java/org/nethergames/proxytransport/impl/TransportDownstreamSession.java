@@ -10,8 +10,8 @@ import dev.waterdog.waterdogpe.network.bridge.TransferBatchBridge;
 import dev.waterdog.waterdogpe.network.downstream.ConnectedDownstreamHandler;
 import dev.waterdog.waterdogpe.network.downstream.InitialHandler;
 import dev.waterdog.waterdogpe.network.downstream.SwitchDownstreamHandler;
+import dev.waterdog.waterdogpe.network.session.CompressionAlgorithm;
 import dev.waterdog.waterdogpe.network.session.DownstreamClient;
-import dev.waterdog.waterdogpe.network.session.bedrock.BedrockDownstreamBridge;
 import dev.waterdog.waterdogpe.player.ProxiedPlayer;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
@@ -26,6 +26,7 @@ import org.nethergames.proxytransport.decoder.PacketDecoder;
 import org.nethergames.proxytransport.encoder.DataPackEncoder;
 import org.nethergames.proxytransport.encoder.ZStdEncoder;
 import org.nethergames.proxytransport.integration.CustomTransportBatchBridge;
+import org.nethergames.proxytransport.integration.TransportDownstreamBridge;
 import org.nethergames.proxytransport.utils.BedrockBatch;
 import org.nethergames.proxytransport.wrapper.DataPack;
 
@@ -84,7 +85,7 @@ public class TransportDownstreamSession implements dev.waterdog.waterdogpe.netwo
 
         if (initial) {
             this.setPacketHandler(new InitialHandler(proxiedPlayer, this.client));
-            this.setBatchHandler(new BedrockDownstreamBridge(player, player.getUpstream()));
+            this.setBatchHandler(new TransportDownstreamBridge(player, player.getUpstream(), this));
         } else {
             this.setPacketHandler(new SwitchDownstreamHandler(player, this.client));
             this.setBatchHandler(new CustomTransportBatchBridge(player, this, player.getUpstream()));
@@ -123,7 +124,7 @@ public class TransportDownstreamSession implements dev.waterdog.waterdogpe.netwo
 
     public void onTransferCompleted0(ProxiedPlayer player, Runnable callback) {
         TransferBatchBridge bridge = this.getBatchBridge();
-        this.setBatchHandler(new BedrockDownstreamBridge(player, player.getUpstream()));
+        this.setBatchHandler(new TransportDownstreamBridge(player, player.getUpstream(), this));
         this.setPacketHandler(new ConnectedDownstreamHandler(player, this.client));
 
         if (bridge != null) {
@@ -132,9 +133,6 @@ public class TransportDownstreamSession implements dev.waterdog.waterdogpe.netwo
         callback.run();
 
         ProxyTransport.getEventAdapter().transferCompleted(this);
-
-       /* currentSpan.finish(SpanStatus.OK);
-        this.sentryTransaction.finish(SpanStatus.OK);*/
     }
 
     @Override
@@ -209,6 +207,16 @@ public class TransportDownstreamSession implements dev.waterdog.waterdogpe.netwo
     }
 
     @Override
+    public CompressionAlgorithm getCompression() {
+        return null;
+    }
+
+    @Override
+    public void setCompression(CompressionAlgorithm compressionAlgorithm) {
+
+    }
+
+    @Override
     public boolean isClosed() {
         return this.disconnected.get();
     }
@@ -278,9 +286,6 @@ public class TransportDownstreamSession implements dev.waterdog.waterdogpe.netwo
         this.latency = (System.currentTimeMillis() - this.lastPingTimestamp) / 2;
         this.networkStackLatencyLock.set(false);
 
-        // TODO: Filter upstream packet from sending TickSyncPacket to downstream server.
-        //       This could possibly cause the AntiCheat to false-positives player latency if
-        //       the client sent their own fake latency (Which is a big vulnerability if you ask me).
         TickSyncPacket latencyPacket = new TickSyncPacket();
         latencyPacket.setRequestTimestamp(player.getPing());
         if (player.getDownstream() != null && player.getDownstream().getSession() != null) {
