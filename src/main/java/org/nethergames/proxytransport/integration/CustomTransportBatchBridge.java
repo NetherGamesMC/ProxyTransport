@@ -39,6 +39,6 @@ public class CustomTransportBatchBridge extends TransferBatchBridge implements B
 
     @Override
     public void handle(BedrockSession bedrockSession, ByteBuf byteBuf, Collection<BedrockPacket> collection) {
-
+        this.handle(bedrockSession.getPacketHandler(), byteBuf, collection, this.session.getCompression());
     }
 }
