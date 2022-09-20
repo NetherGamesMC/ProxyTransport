@@ -1,4 +1,4 @@
 name: ProxyTransport
 author: "NetherGamesMC - Tobias Grether"
-version: "1.0"
+version: ${project.version}
 main: org.nethergames.proxytransport.ProxyTransport

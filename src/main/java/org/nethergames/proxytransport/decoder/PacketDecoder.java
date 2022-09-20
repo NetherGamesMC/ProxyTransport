@@ -49,13 +49,15 @@ public class PacketDecoder extends SimpleChannelInboundHandler<ByteBuf> {
             compressed.markReaderIndex();
             decompressed = channelHandlerContext.alloc().buffer();
 
-            switch(this.session.getCompression().getBedrockCompression()){
-                case ZLIB:
-                    Zlib.RAW.inflate(compressed, decompressed, MAX_BUFFER_SIZE);
-                    break;
-                case SNAPPY:
-                    SnappyCompression.INSTANCE.decompress(compressed, decompressed, MAX_BUFFER_SIZE);
-                    break;
+            var compression = this.session.getCompression();
+            if (compression == null) {
+                Zlib.RAW.inflate(compressed, decompressed, MAX_BUFFER_SIZE);
+            } else {
+                switch (compression.getBedrockCompression()) {
+                    case ZLIB -> Zlib.RAW.inflate(compressed, decompressed, MAX_BUFFER_SIZE);
+                    case SNAPPY -> SnappyCompression.INSTANCE.decompress(compressed, decompressed, MAX_BUFFER_SIZE);
+                    default -> throw new DataFormatException("Unknown compression provided.");
+                }
             }
 
             decompressed.markReaderIndex();
@@ -100,7 +102,7 @@ public class PacketDecoder extends SimpleChannelInboundHandler<ByteBuf> {
             builder.append("======== Begin Of Base64 data ========");
             builder.append(Base64.getEncoder().encodeToString(compressed.array()));
             String formattedDump = builder.toString();
-            if(ProxyTransport.getEventAdapter().bufferDump(id, formattedDump)){
+            if (ProxyTransport.getEventAdapter().bufferDump(id, formattedDump)) {
                 debugLogger.info("Packet dump for {} saved with id {}", session.getPlayer().getName(), id);
             }
             throw new RuntimeException("Unable to inflate buffer data", t);
