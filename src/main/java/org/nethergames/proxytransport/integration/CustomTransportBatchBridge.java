@@ -20,11 +20,6 @@ public class CustomTransportBatchBridge extends TransferBatchBridge implements B
     }
 
     @Override
-    public void handle(BedrockSession bedrockSession, ByteBuf byteBuf, Collection<BedrockPacket> collection) {
-        this.handle(bedrockSession.getPacketHandler(), byteBuf, collection);
-    }
-
-    @Override
     public void flushQueue() {
         if (session.getChannel().eventLoop().inEventLoop()) {
             super.flushQueue();
@@ -40,5 +35,10 @@ public class CustomTransportBatchBridge extends TransferBatchBridge implements B
         } else {
             session.getChannel().eventLoop().execute(super::free);
         }
+    }
+
+    @Override
+    public void handle(BedrockSession bedrockSession, ByteBuf byteBuf, Collection<BedrockPacket> collection) {
+        this.handle(bedrockSession.getPacketHandler(), byteBuf, collection, this.session.getCompression());
     }
 }

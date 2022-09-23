@@ -6,8 +6,10 @@ import com.nukkitx.protocol.bedrock.BedrockPacket;
 import com.nukkitx.protocol.bedrock.BedrockPacketCodec;
 import com.nukkitx.protocol.bedrock.exception.PacketSerializeException;
 import com.nukkitx.protocol.bedrock.packet.NetworkStackLatencyPacket;
+import com.nukkitx.protocol.bedrock.wrapper.compression.SnappyCompression;
 import com.nukkitx.protocol.util.Zlib;
 import dev.waterdog.waterdogpe.ProxyServer;
+import dev.waterdog.waterdogpe.network.session.CompressionAlgorithm;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.channel.ChannelHandlerContext;
@@ -46,7 +48,18 @@ public class PacketDecoder extends SimpleChannelInboundHandler<ByteBuf> {
         try {
             compressed.markReaderIndex();
             decompressed = channelHandlerContext.alloc().buffer();
-            Zlib.RAW.inflate(compressed, decompressed, MAX_BUFFER_SIZE);
+
+            var compression = this.session.getCompression();
+            if (compression == null) {
+                Zlib.RAW.inflate(compressed, decompressed, MAX_BUFFER_SIZE);
+            } else {
+                switch (compression.getBedrockCompression()) {
+                    case ZLIB -> Zlib.RAW.inflate(compressed, decompressed, MAX_BUFFER_SIZE);
+                    case SNAPPY -> SnappyCompression.INSTANCE.decompress(compressed, decompressed, MAX_BUFFER_SIZE);
+                    default -> throw new DataFormatException("Unknown compression provided.");
+                }
+            }
+
             decompressed.markReaderIndex();
 
             while (decompressed.isReadable()) {
@@ -77,7 +90,7 @@ public class PacketDecoder extends SimpleChannelInboundHandler<ByteBuf> {
             }
             compressed.resetReaderIndex();
 
-            this.session.getBatchHandler().handle(this.session.getPacketHandler(), compressed.retain(), packets);
+            this.session.getBatchHandler().handle(this.session.getPacketHandler(), compressed.retain(), packets, CompressionAlgorithm.ZLIB);
         } catch (Throwable t) {
             ProxyTransport.getEventAdapter().downstreamException(this.session, t, null);
             this.debugLogger.warn("Debug data for {} (playerVersion={}, codecVersion={}, totalFrameSizeCompressed={})", this.session.getPlayer().getName(), this.session.getPlayer().getProtocol().getProtocol(), codec.getProtocolVersion(), compressed.readableBytes());
@@ -89,7 +102,7 @@ public class PacketDecoder extends SimpleChannelInboundHandler<ByteBuf> {
             builder.append("======== Begin Of Base64 data ========");
             builder.append(Base64.getEncoder().encodeToString(compressed.array()));
             String formattedDump = builder.toString();
-            if(ProxyTransport.getEventAdapter().bufferDump(id, formattedDump)){
+            if (ProxyTransport.getEventAdapter().bufferDump(id, formattedDump)) {
                 debugLogger.info("Packet dump for {} saved with id {}", session.getPlayer().getName(), id);
             }
             throw new RuntimeException("Unable to inflate buffer data", t);
@@ -97,25 +110,6 @@ public class PacketDecoder extends SimpleChannelInboundHandler<ByteBuf> {
             ReferenceCountUtil.safeRelease(compressed);
             ReferenceCountUtil.safeRelease(decompressed);
         }
-    }
-
-    public boolean skimByteBuf(BedrockPacketCodec codec, ByteBuf buf) {
-        int readerIndex = buf.readerIndex();
-        boolean found = false;
-        while (buf.isReadable()) {
-            int length = VarInts.readUnsignedInt(buf); // length
-            int currentReaderIndex = buf.readerIndex();
-            int packetId = VarInts.readUnsignedInt(buf) & 1023; // packet id
-            int nextReaderIndex = buf.readerIndex();
-            if (codec.getPacketDefinition(packetId) != null) {
-                found = true;
-                break;
-            }
-
-            buf.skipBytes(length - (nextReaderIndex - currentReaderIndex)); // skip all the remaining bytes of this packet
-        }
-        buf.readerIndex(readerIndex);
-        return found;
     }
 
     @Override
