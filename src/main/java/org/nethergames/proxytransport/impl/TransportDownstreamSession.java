@@ -180,15 +180,15 @@ public class TransportDownstreamSession implements dev.waterdog.waterdogpe.netwo
 
     @Override
     public void sendWrapped(Collection<BedrockPacket> collection, boolean b) {
-        this.packetSendingLimit.set(this.packetSendingLimit.get() + collection.size());
-        if (this.packetSendingLimit.get() >= MAX_UPSTREAM_PACKETS) {
-            this.getPlayer().getLogger().warning(this.getPlayer().getName() + " sent too many packets (" + this.packetSendingLimit.get() + "/s), disconnecting. Session status: " + this.channel.isActive() + ":" + this.disconnected.get() + ":" + this.limitResetFuture.isCancelled() + ":" + (this.getPlayer().getServerInfo() != null ? this.getPlayer().getServerInfo().getServerName() : "None") + ":" + (this.getPlayer().getPendingConnection() != null ? this.getPlayer().getPendingConnection().getServerInfo().getServerName() : "None"));
-            this.getPlayer().getUpstream().disconnect("§cToo many packets!");
+        if (this.disconnected.get() || this.player == null || !this.player.isConnected() || !this.channel.isActive() || !this.channel.isWritable()) {
             releasePackets(collection);
             return;
         }
 
-        if (this.disconnected.get() || this.player == null || !this.channel.isActive() || !this.channel.isWritable()) {
+        this.packetSendingLimit.set(this.packetSendingLimit.get() + collection.size());
+        if (this.packetSendingLimit.get() >= MAX_UPSTREAM_PACKETS) {
+            this.getPlayer().getLogger().warning(this.getPlayer().getName() + " sent too many packets (" + this.packetSendingLimit.get() + "/s), disconnecting. Session status: " + this.channel.isActive() + ":" + this.disconnected.get() + ":" + this.limitResetFuture.isCancelled() + ":" + (this.getPlayer().getServerInfo() != null ? this.getPlayer().getServerInfo().getServerName() : "None") + ":" + (this.getPlayer().getPendingConnection() != null ? this.getPlayer().getPendingConnection().getServerInfo().getServerName() : "None"));
+            this.getPlayer().getUpstream().disconnect("§cToo many packets!");
             releasePackets(collection);
             return;
         }
