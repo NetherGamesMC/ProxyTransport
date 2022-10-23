@@ -52,6 +52,7 @@ public class TransportDownstreamSession implements dev.waterdog.waterdogpe.netwo
     private static final ScheduledExecutorService focusedResetTimer = Executors.newScheduledThreadPool(4);
 
     private final AtomicInteger packetSendingLimit = new AtomicInteger(0);
+    private final AtomicBoolean packetSendingLock = new AtomicBoolean(false); // Lock packets from being sent to downstream servers.
     private final AtomicBoolean disconnected = new AtomicBoolean(false);
     private final AtomicBoolean ready = new AtomicBoolean(false);
     private final AtomicBoolean networkStackLatencyLock = new AtomicBoolean(false); // true if we already sent one and wait for the response
@@ -180,13 +181,15 @@ public class TransportDownstreamSession implements dev.waterdog.waterdogpe.netwo
 
     @Override
     public void sendWrapped(Collection<BedrockPacket> collection, boolean b) {
-        if (this.disconnected.get() || this.player == null || !this.player.isConnected() || !this.channel.isActive() || !this.channel.isWritable()) {
+        if (this.disconnected.get() || this.player == null || !this.player.isConnected() || !this.channel.isActive() || !this.channel.isWritable() || this.packetSendingLock.get()) {
             releasePackets(collection);
             return;
         }
 
         this.packetSendingLimit.set(this.packetSendingLimit.get() + collection.size());
         if (this.packetSendingLimit.get() >= MAX_UPSTREAM_PACKETS) {
+            this.packetSendingLock.set(true);
+
             this.getPlayer().getLogger().warning(this.getPlayer().getName() + " sent too many packets (" + this.packetSendingLimit.get() + "/s), disconnecting. Session status: " + this.channel.isActive() + ":" + this.disconnected.get() + ":" + this.limitResetFuture.isCancelled() + ":" + (this.getPlayer().getServerInfo() != null ? this.getPlayer().getServerInfo().getServerName() : "None") + ":" + (this.getPlayer().getPendingConnection() != null ? this.getPlayer().getPendingConnection().getServerInfo().getServerName() : "None"));
             this.getPlayer().getUpstream().disconnect("§cToo many packets!");
             releasePackets(collection);

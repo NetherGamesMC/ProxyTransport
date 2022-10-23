@@ -28,4 +28,4 @@ jobs:
           body: ""
           tag: "${{ steps.branch.outputs.branch }}"
           name: "${{ github.event.head_commit.message }}"
-          artifacts: "target/proxy-transport-1.0.jar"
+          artifacts: "target/proxy-transport-1.4.jar"
