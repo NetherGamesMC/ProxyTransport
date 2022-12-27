@@ -1,4 +1,4 @@
-name: Publish package to the Maven Repository
+name: Publish package
 on:
   push:
     branches: ['master']
@@ -11,8 +11,13 @@ jobs:
         with:
           java-version: '17'
           java-distribution: 'adopt'
-      - name: Publish client
-        run: mvn -T 4 --batch-mode deploy -q -s settings.xml
+      - name: Publish and package client
+        run: mvn -T 4 --batch-mode deploy package -q -s settings.xml
         env:
           REPO_USERNAME: github-deploy
           REPO_PASSWORD: ${{ secrets.DEPLOY_TOKEN }}
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: ProxyTransport
+          path: target/ProxyTransport.jar

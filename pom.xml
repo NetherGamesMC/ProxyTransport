@@ -6,7 +6,7 @@
 
     <groupId>org.nethergames.proxytransport</groupId>
     <artifactId>proxy-transport</artifactId>
-    <version>1.5</version>
+    <version>1.4.1-SNAPSHOT</version>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

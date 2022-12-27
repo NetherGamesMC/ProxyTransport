@@ -15,7 +15,7 @@ jobs:
           java-version: 17
           distribution: microsoft
       - name: Build ProxyTransport
-        run: mvn -B install --file pom.xml
+        run: mvn -B install -q --file pom.xml
       - name: Create Release
         uses: "marvinpinto/action-automatic-releases@latest"
         with:
