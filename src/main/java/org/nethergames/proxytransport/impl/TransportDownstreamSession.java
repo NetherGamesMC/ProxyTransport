@@ -188,11 +188,12 @@ public class TransportDownstreamSession implements dev.waterdog.waterdogpe.netwo
 
         this.packetSendingLimit.set(this.packetSendingLimit.get() + collection.size());
         if (this.packetSendingLimit.get() >= MAX_UPSTREAM_PACKETS) {
-            this.packetSendingLock.set(true);
+            if (packetSendingLock.compareAndSet(false, true)) {
+                this.getPlayer().getLogger().warning(this.getPlayer().getName() + " sent too many packets (" + this.packetSendingLimit.get() + "/s), disconnecting. Session status: " + this.channel.isActive() + ":" + this.disconnected.get() + ":" + this.limitResetFuture.isCancelled() + ":" + (this.getPlayer().getServerInfo() != null ? this.getPlayer().getServerInfo().getServerName() : "None") + ":" + (this.getPlayer().getPendingConnection() != null ? this.getPlayer().getPendingConnection().getServerInfo().getServerName() : "None"));
+                this.getPlayer().getUpstream().disconnect("§cToo many packets!");
+                releasePackets(collection);
+            }
 
-            this.getPlayer().getLogger().warning(this.getPlayer().getName() + " sent too many packets (" + this.packetSendingLimit.get() + "/s), disconnecting. Session status: " + this.channel.isActive() + ":" + this.disconnected.get() + ":" + this.limitResetFuture.isCancelled() + ":" + (this.getPlayer().getServerInfo() != null ? this.getPlayer().getServerInfo().getServerName() : "None") + ":" + (this.getPlayer().getPendingConnection() != null ? this.getPlayer().getPendingConnection().getServerInfo().getServerName() : "None"));
-            this.getPlayer().getUpstream().disconnect("§cToo many packets!");
-            releasePackets(collection);
             return;
         }
 
