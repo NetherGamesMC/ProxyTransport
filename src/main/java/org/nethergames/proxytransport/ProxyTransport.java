@@ -1,28 +1,18 @@
 package org.nethergames.proxytransport;
 
 import dev.waterdog.waterdogpe.plugin.Plugin;
-import org.nethergames.proxytransport.impl.event.NOOPEventAdapter;
-import org.nethergames.proxytransport.impl.event.TransportEventAdapter;
 import org.nethergames.proxytransport.integration.CustomTransportServerInfo;
 
 public class ProxyTransport extends Plugin {
-    private static TransportEventAdapter eventAdapter = new NOOPEventAdapter();
 
     @Override
     public void onStartup() {
-        getProxy().getServerInfoMap().removeServerInfoType(CustomTransportServerInfo.TYPE);
-        getProxy().getServerInfoMap().registerServerInfoFactory(CustomTransportServerInfo.TYPE, CustomTransportServerInfo::new);
+        getLogger().info("ProxyTransport was started.");
+        getLogger().info("Registered type with name {}", CustomTransportServerInfo.TYPE.getIdentifier());
     }
     
     @Override
     public void onEnable() {
-    }
-
-    public static TransportEventAdapter getEventAdapter() {
-        return eventAdapter;
-    }
-
-    public static void setEventAdapter(TransportEventAdapter eventAdapter) {
-        ProxyTransport.eventAdapter = eventAdapter;
+        getLogger().info("ProxyTransport was enabled.");
     }
 }

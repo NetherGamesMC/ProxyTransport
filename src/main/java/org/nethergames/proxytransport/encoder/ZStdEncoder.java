@@ -23,6 +23,7 @@ public class ZStdEncoder extends MessageToMessageEncoder<ByteBuf> {
         } else {
             ByteBuffer compressedNio = compressed.nioBuffer(0, compressedSize);
             ByteBuffer decompressedNio = buf.nioBuffer(buf.readerIndex(), buf.readableBytes());
+
             compressedSize = Zstd.compress(compressedNio, decompressedNio, 3);
         }
 
