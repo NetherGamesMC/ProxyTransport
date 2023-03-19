@@ -1,7 +1,6 @@
 name: Publish package
-on:
-  push:
-    branches: ['master']
+on: push
+
 jobs:
   publish:
     runs-on: ubuntu-latest
