@@ -4,7 +4,6 @@ import dev.waterdog.waterdogpe.ProxyServer;
 import dev.waterdog.waterdogpe.network.connection.client.ClientConnection;
 import dev.waterdog.waterdogpe.network.connection.codec.BedrockBatchWrapper;
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToMessageEncoder;
@@ -20,7 +19,10 @@ public class DataPackEncoder extends MessageToMessageEncoder<BedrockBatchWrapper
 
     @Override
     protected void encode(ChannelHandlerContext channelHandlerContext, BedrockBatchWrapper wrapper, List<Object> out) {
-        ByteBuf buf = ByteBufAllocator.DEFAULT.ioBuffer();
+        ByteBuf buf = channelHandlerContext.alloc().ioBuffer();
+        ByteBuf dir = null;
+        ByteBuf com = null;
+
         try {
             // The batch was modified or the compression types mismatch
             if (wrapper.isModified() && wrapper.getUncompressed() != null || (wrapper.getAlgorithm() != clientConnection.getPlayer().getCompression())) {
@@ -32,21 +34,26 @@ public class DataPackEncoder extends MessageToMessageEncoder<BedrockBatchWrapper
                     // ZStd-jni needs direct buffers to function properly
                     // Composite Buffers or indirect buffers will not generate valid NIO ByteBuffers
 
-                    source = channelHandlerContext.alloc().ioBuffer(source.readableBytes());
-                    source.writeBytes(source);
+                    dir = channelHandlerContext.alloc().ioBuffer(source.readableBytes());
+                    dir.writeBytes(source);
+
+                    com = ZStdEncoder.compress(dir);
+                } else {
+                    com = ZStdEncoder.compress(source);
                 }
 
-                ByteBuf compressed = ZStdEncoder.compress(source);
-                buf.writeBytes(compressed);
+                buf.writeBytes(com);
             } else if (!wrapper.isModified() && wrapper.getCompressed() != null) { // The batch is already compressed correctly and we can yeet the buffer straight to the server
                 buf.writeByte(CompressionType.METHOD_ZLIB.ordinal());
                 buf.writeBytes(wrapper.getCompressed());
             }
         } catch (Throwable t) {
             ProxyServer.getInstance().getLogger().error("Error in DataPack Encoding", t);
+        } finally {
+            if (com != null) com.release();
+            if (dir != null) dir.release();
         }
 
         out.add(buf);
-
     }
 }
