@@ -24,8 +24,9 @@ public class DataPackEncoder extends MessageToMessageEncoder<BedrockBatchWrapper
         ByteBuf com = null;
 
         try {
-            // The batch was modified or the compression types mismatch
-            if (wrapper.isModified() && wrapper.getUncompressed() != null || (wrapper.getAlgorithm() != clientConnection.getPlayer().getCompression())) {
+            // The batch was modified or the wrapper has no compressed data while still retaining
+            // the uncompressed data.
+            if ((wrapper.isModified() || wrapper.getCompressed() == null) && wrapper.getUncompressed() != null) {
 
                 buf.writeByte(CompressionType.METHOD_ZSTD.ordinal());
                 ByteBuf source = wrapper.getUncompressed();

@@ -3,28 +3,99 @@ package org.nethergames.proxytransport.impl;
 import dev.waterdog.waterdogpe.network.connection.client.BedrockClientConnection;
 import dev.waterdog.waterdogpe.network.connection.codec.BedrockBatchWrapper;
 import dev.waterdog.waterdogpe.network.connection.codec.compression.CompressionAlgorithm;
+import dev.waterdog.waterdogpe.network.connection.codec.packet.BedrockPacketCodec;
 import dev.waterdog.waterdogpe.network.serverinfo.ServerInfo;
 import dev.waterdog.waterdogpe.player.ProxiedPlayer;
+import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
-import io.netty.channel.epoll.EpollSocketChannel;
-import org.checkerframework.checker.nullness.qual.NonNull;
+import io.netty.channel.ChannelHandlerContext;
+import lombok.extern.log4j.Log4j2;
+import org.cloudburstmc.protocol.bedrock.codec.BedrockCodec;
+import org.cloudburstmc.protocol.bedrock.codec.BedrockCodecHelper;
+import org.cloudburstmc.protocol.bedrock.netty.BedrockPacketWrapper;
 import org.cloudburstmc.protocol.bedrock.packet.BedrockPacket;
+import org.cloudburstmc.protocol.bedrock.packet.NetworkStackLatencyPacket;
+import org.cloudburstmc.protocol.bedrock.packet.TickSyncPacket;
 
 import javax.crypto.SecretKey;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
+@Log4j2(topic = "ClientConnection")
 public class TransportClientConnection extends BedrockClientConnection {
 
+    private static final int PING_CYCLE_TIME = 2; // 2 seconds
+    private static final long MAX_UPSTREAM_PACKETS = 750;
+
+    private final AtomicInteger packetSendingLimit = new AtomicInteger(0);
+    private final AtomicBoolean packetSendingLock = new AtomicBoolean(false); // Lock packets from being sent to downstream servers.
+
     private final Channel channel;
+    private long lastPingTimestamp;
+    private long latency;
+
+    private final List<ScheduledFuture<?>> scheduledTasks = new ArrayList<>();
 
     public TransportClientConnection(ProxiedPlayer player, ServerInfo serverInfo, Channel channel) {
         super(player, serverInfo, channel);
 
         this.channel = channel;
+
+        scheduledTasks.add(channel.eventLoop().scheduleAtFixedRate(this::sendAckPing, PING_CYCLE_TIME, PING_CYCLE_TIME, TimeUnit.SECONDS));
+        scheduledTasks.add(channel.eventLoop().scheduleAtFixedRate(() -> packetSendingLimit.set(0), 1, 1, TimeUnit.SECONDS));
+    }
+
+    @Override
+    public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+        super.channelInactive(ctx);
+
+        scheduledTasks.forEach(task -> task.cancel(false));
+    }
+
+    @Override
+    protected void channelRead0(ChannelHandlerContext ctx, BedrockBatchWrapper batch) {
+        for (var wrapper : batch.getPackets()) {
+            var packet = decodePacket(wrapper);
+
+            if (packet != null && packet.getTimestamp() == 0) {
+                batch.getPackets().remove(wrapper);
+                wrapper.release();
+
+                recvAckPing();
+            }
+        }
+
+        super.channelRead0(ctx, batch);
     }
 
     @Override
     public void sendPacket(BedrockPacket packet) {
-        super.sendPacket(BedrockBatchWrapper.create(getSubClientId(), packet));
+        this.sendPacket(BedrockBatchWrapper.create(getSubClientId(), packet));
+    }
+
+    @Override
+    public void sendPacketImmediately(BedrockPacket packet) {
+        this.sendPacket(BedrockBatchWrapper.create(getSubClientId(), packet));
+    }
+
+    @Override
+    public void sendPacket(BedrockBatchWrapper wrapper) {
+        packetSendingLimit.set(this.packetSendingLimit.get() + wrapper.getPackets().size());
+
+        if (packetSendingLimit.get() >= MAX_UPSTREAM_PACKETS) {
+            wrapper.release();
+
+            if (packetSendingLock.compareAndSet(false, true)) {
+                getPlayer().getLogger().warning(getPlayer().getName() + " sent too many packets (" + packetSendingLimit.get() + "/s), disconnecting.");
+                getPlayer().getConnection().disconnect("§cToo many packets!");
+            }
+        } else if (!packetSendingLock.get()) {
+            super.sendPacket(wrapper);
+        }
     }
 
     @Override
@@ -33,20 +104,56 @@ public class TransportClientConnection extends BedrockClientConnection {
     }
 
     @Override
-    public void enableEncryption(@NonNull SecretKey secretKey) {
+    public void enableEncryption(SecretKey secretKey) {
         // Encryption is generally not good in server-to-server scenarios
     }
 
     @Override
     public long getPing() {
-        // TCP_INFO is only supported in linux-family operating system as for now.
-        // So far this is the best option to calculate the player latency
-        if (channel instanceof EpollSocketChannel epollChannel) {
-            var tcpInfo = epollChannel.tcpInfo();
+        return latency;
+    }
 
-            return tcpInfo.lastAckRecv() - tcpInfo.lastAckSent();
-        } else {
-            return 0L;
+    public void sendAckPing() {
+        var connection = getPlayer().getDownstreamConnection();
+        if (connection instanceof TransportClientConnection && connection.getServerInfo().getServerName().equalsIgnoreCase(getServerInfo().getServerName())) {
+            NetworkStackLatencyPacket packet = new NetworkStackLatencyPacket();
+            packet.setTimestamp(0L);
+            packet.setFromServer(true);
+
+            sendPacket(packet);
+
+            lastPingTimestamp = System.currentTimeMillis();
         }
+    }
+
+    public void recvAckPing() {
+        latency = (System.currentTimeMillis() - lastPingTimestamp) / 2;
+
+        TickSyncPacket latencyPacket = new TickSyncPacket();
+        latencyPacket.setRequestTimestamp(getPlayer().getPing());
+        latencyPacket.setResponseTimestamp(latency);
+
+        sendPacket(latencyPacket);
+    }
+
+    private NetworkStackLatencyPacket decodePacket(BedrockPacketWrapper wrapper) {
+        BedrockCodec codec = channel.pipeline().get(BedrockPacketCodec.class).getCodec();
+        BedrockCodecHelper codecHelper = channel.pipeline().get(BedrockPacketCodec.class).getHelper();
+
+        ByteBuf msg = wrapper.getPacketBuffer().retainedSlice();
+        try {
+            msg.skipBytes(wrapper.getHeaderLength()); // skip header
+
+            var definition = codec.getPacketDefinition(wrapper.getPacketId());
+            if (definition != null && definition.getFactory().get() instanceof NetworkStackLatencyPacket) {
+                return (NetworkStackLatencyPacket) codec.tryDecode(codecHelper, msg, wrapper.getPacketId());
+            }
+        } catch (Throwable t) {
+            log.warn("Failed to decode packet", t);
+        } finally {
+            msg.release();
+        }
+
+        return null;
     }
 }
