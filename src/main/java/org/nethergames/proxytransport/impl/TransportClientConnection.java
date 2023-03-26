@@ -87,15 +87,16 @@ public class TransportClientConnection extends BedrockClientConnection {
         packetSendingLimit.set(this.packetSendingLimit.get() + wrapper.getPackets().size());
 
         if (packetSendingLimit.get() >= MAX_UPSTREAM_PACKETS) {
-            wrapper.release();
-
             if (packetSendingLock.compareAndSet(false, true)) {
                 getPlayer().getLogger().warning(getPlayer().getName() + " sent too many packets (" + packetSendingLimit.get() + "/s), disconnecting.");
                 getPlayer().getConnection().disconnect("§cToo many packets!");
             }
         } else if (!packetSendingLock.get()) {
             super.sendPacket(wrapper);
+            return;
         }
+
+        wrapper.release();
     }
 
     @Override
