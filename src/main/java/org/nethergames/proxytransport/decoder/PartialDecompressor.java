@@ -2,6 +2,7 @@ package org.nethergames.proxytransport.decoder;
 
 import dev.waterdog.waterdogpe.network.connection.client.ClientConnection;
 import dev.waterdog.waterdogpe.network.connection.codec.BedrockBatchWrapper;
+import dev.waterdog.waterdogpe.network.connection.codec.compression.CompressionAlgorithm;
 import dev.waterdog.waterdogpe.network.connection.codec.compression.SnappyCompressionCodec;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
@@ -34,6 +35,9 @@ public class PartialDecompressor extends MessageToMessageDecoder<ByteBuf> {
         }
 
         compressed.resetReaderIndex();
-        list.add(BedrockBatchWrapper.newInstance(compressed.retain(), decompressed));
+        BedrockBatchWrapper wrapper = BedrockBatchWrapper.newInstance(compressed.retain(), decompressed);
+        wrapper.setAlgorithm(connection.getPlayer().getCompression());
+        list.add(wrapper);
+
     }
 }
