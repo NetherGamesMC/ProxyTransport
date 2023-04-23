@@ -3,8 +3,6 @@
 Proxy Transport is a TCP transport protocol implementation to replace the inefficient RakNet protocol implementation
 between proxies and downstream servers.
 
-From the [internal documentation:](https://outline.nethergames.org/share/d44f104f-8ad5-4ca3-a6f7-c8a0863d6b3e)
-
 ## Format
 
 Packet frames have the following format:
