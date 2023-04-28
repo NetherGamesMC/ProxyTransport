@@ -19,7 +19,10 @@ import org.cloudburstmc.protocol.bedrock.packet.TickSyncPacket;
 
 import javax.crypto.SecretKey;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -30,7 +33,9 @@ public class TransportClientConnection extends BedrockClientConnection {
 
     private static final int PING_CYCLE_TIME = 2; // 2 seconds
     private static final long MAX_UPSTREAM_PACKETS = 750;
+    private static final ScheduledExecutorService focusedResetTimer = Executors.newScheduledThreadPool(4);
 
+    private final AtomicBoolean activeChannelLock = new AtomicBoolean(false);
     private final AtomicInteger packetSendingLimit = new AtomicInteger(0);
     private final AtomicBoolean packetSendingLock = new AtomicBoolean(false); // Lock packets from being sent to downstream servers.
 
@@ -44,16 +49,28 @@ public class TransportClientConnection extends BedrockClientConnection {
         super(player, serverInfo, channel);
 
         this.channel = channel;
+        this.channel.closeFuture().addListener(future -> cleanActiveChannels());
 
-        scheduledTasks.add(channel.eventLoop().scheduleAtFixedRate(this::sendAckPing, PING_CYCLE_TIME, PING_CYCLE_TIME, TimeUnit.SECONDS));
-        scheduledTasks.add(channel.eventLoop().scheduleAtFixedRate(() -> packetSendingLimit.set(0), 1, 1, TimeUnit.SECONDS));
+        scheduledTasks.add(focusedResetTimer.scheduleAtFixedRate(this::sendAckPing, PING_CYCLE_TIME, PING_CYCLE_TIME, TimeUnit.SECONDS));
+        scheduledTasks.add(focusedResetTimer.scheduleAtFixedRate(() -> packetSendingLimit.set(0), 1, 1, TimeUnit.SECONDS));
     }
 
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
-        super.channelInactive(ctx);
+        scheduledTasks.forEach(task -> cleanActiveChannels());
 
-        scheduledTasks.forEach(task -> task.cancel(false));
+        super.channelInactive(ctx);
+    }
+
+    public void cleanActiveChannels() {
+        if (!activeChannelLock.compareAndSet(false, true)) {
+            return;
+        }
+
+        for (Iterator<ScheduledFuture<?>> iterator = scheduledTasks.iterator(); iterator.hasNext(); ) {
+            iterator.next().cancel(false);
+            iterator.remove();
+        }
     }
 
     @Override
