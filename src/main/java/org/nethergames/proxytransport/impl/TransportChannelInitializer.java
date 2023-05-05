@@ -20,6 +20,7 @@ import org.cloudburstmc.netty.channel.raknet.config.RakChannelOption;
 import org.cloudburstmc.netty.channel.raknet.config.RakMetrics;
 import org.nethergames.proxytransport.decoder.PartialDecompressor;
 import org.nethergames.proxytransport.encoder.DataPackEncoder;
+import org.nethergames.proxytransport.integration.CustomClientEventHandler;
 
 import static dev.waterdog.waterdogpe.network.connection.codec.initializer.ProxiedSessionInitializer.BATCH_DECODER;
 import static dev.waterdog.waterdogpe.network.connection.codec.initializer.ProxiedSessionInitializer.getPacketCodec;
@@ -70,7 +71,7 @@ public class TransportChannelInitializer extends ChannelInitializer<Channel> {
         }
 
         channel.pipeline()
-                .addLast(ClientEventHandler.NAME, new ClientEventHandler(this.player, connection))
+                .addLast(CustomClientEventHandler.NAME, new CustomClientEventHandler(this.player, connection))
                 .addLast(new TransportChannelInitializer.ChannelActiveHandler(connection, this.promise));
     }
 
