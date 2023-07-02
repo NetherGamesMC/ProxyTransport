@@ -4,11 +4,13 @@ import dev.waterdog.waterdogpe.network.connection.client.BedrockClientConnection
 import dev.waterdog.waterdogpe.network.connection.codec.BedrockBatchWrapper;
 import dev.waterdog.waterdogpe.network.connection.codec.compression.CompressionAlgorithm;
 import dev.waterdog.waterdogpe.network.connection.codec.packet.BedrockPacketCodec;
+import dev.waterdog.waterdogpe.network.protocol.handler.ProxyBatchBridge;
 import dev.waterdog.waterdogpe.network.serverinfo.ServerInfo;
 import dev.waterdog.waterdogpe.player.ProxiedPlayer;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
+import lombok.NonNull;
 import lombok.extern.log4j.Log4j2;
 import org.cloudburstmc.protocol.bedrock.codec.BedrockCodec;
 import org.cloudburstmc.protocol.bedrock.codec.BedrockCodecHelper;
@@ -21,6 +23,7 @@ import javax.crypto.SecretKey;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -51,7 +54,7 @@ public class TransportClientConnection extends BedrockClientConnection {
         this.channel = channel;
         this.channel.closeFuture().addListener(future -> cleanActiveChannels());
 
-        scheduledTasks.add(focusedResetTimer.scheduleAtFixedRate(this::sendAckPing, PING_CYCLE_TIME, PING_CYCLE_TIME, TimeUnit.SECONDS));
+        scheduledTasks.add(focusedResetTimer.scheduleAtFixedRate(this::sendAcknowledge, PING_CYCLE_TIME, PING_CYCLE_TIME, TimeUnit.SECONDS));
         scheduledTasks.add(focusedResetTimer.scheduleAtFixedRate(() -> packetSendingLimit.set(0), 1, 1, TimeUnit.SECONDS));
     }
 
@@ -75,18 +78,29 @@ public class TransportClientConnection extends BedrockClientConnection {
 
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, BedrockBatchWrapper batch) {
-        for (var wrapper : batch.getPackets()) {
-            var packet = decodePacket(wrapper);
-
-            if (packet != null && packet.getTimestamp() == 0) {
-                batch.getPackets().remove(wrapper);
-                wrapper.release();
-
-                recvAckPing();
-            }
+        if (getPacketHandler() instanceof ProxyBatchBridge) {
+            onBedrockBatch(batch);
         }
 
         super.channelRead0(ctx, batch);
+    }
+
+    private void onBedrockBatch(@NonNull BedrockBatchWrapper batch) {
+        ListIterator<BedrockPacketWrapper> iterator = batch.getPackets().listIterator();
+        while (iterator.hasNext()) {
+            BedrockPacketWrapper wrapper = iterator.next();
+            if (wrapper.getPacket() == null) {
+                this.decodePacket(wrapper);
+            }
+
+            if (wrapper.getPacket() instanceof NetworkStackLatencyPacket packet && packet.getTimestamp() == 0) {
+                iterator.remove(); // remove from batch
+                wrapper.release(); // release
+                batch.modify();
+
+                receiveAcknowledge();
+            }
+        }
     }
 
     @Override
@@ -131,7 +145,7 @@ public class TransportClientConnection extends BedrockClientConnection {
         return latency;
     }
 
-    public void sendAckPing() {
+    public void sendAcknowledge() {
         var connection = getPlayer().getDownstreamConnection();
         if (connection instanceof TransportClientConnection && connection.getServerInfo().getServerName().equalsIgnoreCase(getServerInfo().getServerName())) {
             NetworkStackLatencyPacket packet = new NetworkStackLatencyPacket();
@@ -144,7 +158,7 @@ public class TransportClientConnection extends BedrockClientConnection {
         }
     }
 
-    public void recvAckPing() {
+    private void receiveAcknowledge() {
         latency = (System.currentTimeMillis() - lastPingTimestamp) / 2;
 
         TickSyncPacket latencyPacket = new TickSyncPacket();
@@ -154,24 +168,19 @@ public class TransportClientConnection extends BedrockClientConnection {
         sendPacket(latencyPacket);
     }
 
-    private NetworkStackLatencyPacket decodePacket(BedrockPacketWrapper wrapper) {
+    private void decodePacket(BedrockPacketWrapper wrapper) {
         BedrockCodec codec = channel.pipeline().get(BedrockPacketCodec.class).getCodec();
-        BedrockCodecHelper codecHelper = channel.pipeline().get(BedrockPacketCodec.class).getHelper();
+        BedrockCodecHelper helper = channel.pipeline().get(BedrockPacketCodec.class).getHelper();
 
         ByteBuf msg = wrapper.getPacketBuffer().retainedSlice();
         try {
             msg.skipBytes(wrapper.getHeaderLength()); // skip header
-
-            var definition = codec.getPacketDefinition(wrapper.getPacketId());
-            if (definition != null && definition.getFactory().get() instanceof NetworkStackLatencyPacket) {
-                return (NetworkStackLatencyPacket) codec.tryDecode(codecHelper, msg, wrapper.getPacketId());
-            }
+            wrapper.setPacket(codec.tryDecode(helper, msg, wrapper.getPacketId()));
         } catch (Throwable t) {
             log.warn("Failed to decode packet", t);
+            throw t;
         } finally {
             msg.release();
         }
-
-        return null;
     }
 }

@@ -71,7 +71,7 @@ public class ZstdCompressionCodec extends MessageToMessageCodec<ByteBuf, Bedrock
 
     @Override
     protected void decode(ChannelHandlerContext ctx, ByteBuf compressed, List<Object> out) {
-        BedrockBatchWrapper msg = BedrockBatchWrapper.newInstance(compressed.readRetainedSlice(compressed.readableBytes()), null);
+        BedrockBatchWrapper msg = BedrockBatchWrapper.newInstance(compressed.retain(), null);
 
         try {
             msg.setAlgorithm(connection.getPlayer().getCompression());
