@@ -24,8 +24,6 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -36,7 +34,6 @@ public class TransportClientConnection extends BedrockClientConnection {
 
     private static final int PING_CYCLE_TIME = 2; // 2 seconds
     private static final long MAX_UPSTREAM_PACKETS = 750;
-    private static final ScheduledExecutorService focusedResetTimer = Executors.newScheduledThreadPool(4);
 
     private final AtomicBoolean activeChannelLock = new AtomicBoolean(false);
     private final AtomicInteger packetSendingLimit = new AtomicInteger(0);
@@ -54,8 +51,8 @@ public class TransportClientConnection extends BedrockClientConnection {
         this.channel = channel;
         this.channel.closeFuture().addListener(future -> cleanActiveChannels());
 
-        scheduledTasks.add(focusedResetTimer.scheduleAtFixedRate(this::sendAcknowledge, PING_CYCLE_TIME, PING_CYCLE_TIME, TimeUnit.SECONDS));
-        scheduledTasks.add(focusedResetTimer.scheduleAtFixedRate(() -> packetSendingLimit.set(0), 1, 1, TimeUnit.SECONDS));
+        scheduledTasks.add(channel.eventLoop().scheduleAtFixedRate(this::sendAcknowledge, PING_CYCLE_TIME, PING_CYCLE_TIME, TimeUnit.SECONDS));
+        scheduledTasks.add(channel.eventLoop().scheduleAtFixedRate(() -> packetSendingLimit.set(0), 1, 1, TimeUnit.SECONDS));
     }
 
     @Override
