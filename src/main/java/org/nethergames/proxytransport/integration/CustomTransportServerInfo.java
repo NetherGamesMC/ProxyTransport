@@ -29,7 +29,7 @@ import java.util.concurrent.TimeUnit;
 
 public class CustomTransportServerInfo extends ServerInfo {
     public static final int availableCPU = Runtime.getRuntime().availableProcessors();
-    public static final ThreadFactory downstreamThreadFactory = new NamedThreadFactory("TCP-Downstream %s");
+    public static final ThreadFactory downstreamThreadFactory = new NamedThreadFactory("QUIC-Downstream %s");
     public static final EventLoopGroup downstreamLoopGroup = Epoll.isAvailable() ? new EpollEventLoopGroup(availableCPU, downstreamThreadFactory) : new NioEventLoopGroup(availableCPU, downstreamThreadFactory);
 
     public static final String TYPE_IDENT = "quic";
@@ -108,7 +108,12 @@ public class CustomTransportServerInfo extends ServerInfo {
         b.connect().addListener((ChannelFuture channelFuture) -> {
             if (channelFuture.isSuccess()) {
                 QuicChannel.newBootstrap(channelFuture.channel())
-                        .streamHandler(new ChannelInboundHandlerAdapter())
+                        .streamHandler(new ChannelInboundHandlerAdapter() {
+                            @Override
+                            public void channelActive(ChannelHandlerContext ctx) {
+                                ctx.close();
+                            }
+                        })
                         .remoteAddress(address)
                         .connect().addListener((Future<QuicChannel> quicChannelFuture)-> {
                             if (quicChannelFuture.isSuccess()) {

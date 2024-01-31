@@ -6,7 +6,7 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 
 public class CustomClientEventHandler extends ChannelInboundHandlerAdapter {
-    public static final String NAME = "tcp-client-event-handler";
+    public static final String NAME = "quic-stream-client-event-handler";
 
     private final ProxiedPlayer player;
     private final ClientConnection connection;

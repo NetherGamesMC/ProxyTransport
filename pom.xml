@@ -45,8 +45,8 @@
         <dependency>
             <groupId>io.netty.incubator</groupId>
             <artifactId>netty-incubator-codec-native-quic</artifactId>
-            <version>0.0.21.Final</version>
-            <classifier>osx-x86_64</classifier>
+            <version>0.0.56.Final</version>
+            <classifier>osx-aarch_64</classifier>
         </dependency>
     </dependencies>
 
