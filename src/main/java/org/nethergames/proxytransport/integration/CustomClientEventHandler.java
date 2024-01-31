@@ -6,7 +6,7 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 
 public class CustomClientEventHandler extends ChannelInboundHandlerAdapter {
-    public static final String NAME = "tcp-client-event-handler";
+    public static final String NAME = "client-event-handler";
 
     private final ProxiedPlayer player;
     private final ClientConnection connection;
@@ -27,7 +27,7 @@ public class CustomClientEventHandler extends ChannelInboundHandlerAdapter {
             return;
         }
 
-        this.player.getLogger().warning("[" + connection.getSocketAddress() + "|" + this.player.getName() + "] - Exception in TCP connection caught", cause);
+        this.player.getLogger().warning("[" + connection.getSocketAddress() + "|" + this.player.getName() + "] - Exception in connection caught", cause);
         this.player.onDownstreamTimeout(this.connection.getServerInfo());
 
         this.connection.disconnect();
