@@ -1,8 +1,6 @@
 package org.nethergames.proxytransport.impl;
 
 import dev.waterdog.waterdogpe.network.connection.client.BedrockClientConnection;
-import dev.waterdog.waterdogpe.network.connection.codec.BedrockBatchWrapper;
-import dev.waterdog.waterdogpe.network.connection.codec.compression.CompressionAlgorithm;
 import dev.waterdog.waterdogpe.network.connection.codec.packet.BedrockPacketCodec;
 import dev.waterdog.waterdogpe.network.protocol.handler.ProxyBatchBridge;
 import dev.waterdog.waterdogpe.network.serverinfo.ServerInfo;
@@ -14,12 +12,12 @@ import lombok.NonNull;
 import lombok.extern.log4j.Log4j2;
 import org.cloudburstmc.protocol.bedrock.codec.BedrockCodec;
 import org.cloudburstmc.protocol.bedrock.codec.BedrockCodecHelper;
+import org.cloudburstmc.protocol.bedrock.netty.BedrockBatchWrapper;
 import org.cloudburstmc.protocol.bedrock.netty.BedrockPacketWrapper;
 import org.cloudburstmc.protocol.bedrock.packet.BedrockPacket;
 import org.cloudburstmc.protocol.bedrock.packet.NetworkStackLatencyPacket;
 import org.cloudburstmc.protocol.bedrock.packet.TickSyncPacket;
 
-import javax.crypto.SecretKey;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -125,16 +123,6 @@ public class TransportClientConnection extends BedrockClientConnection {
         }
 
         wrapper.release();
-    }
-
-    @Override
-    public void setCompression(CompressionAlgorithm compression) {
-        // We do not want to change compression because we have our own logic
-    }
-
-    @Override
-    public void enableEncryption(SecretKey secretKey) {
-        // Encryption is generally not good in server-to-server scenarios
     }
 
     @Override

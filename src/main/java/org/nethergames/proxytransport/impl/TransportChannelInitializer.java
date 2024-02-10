@@ -5,6 +5,7 @@ import dev.waterdog.waterdogpe.network.PacketDirection;
 import dev.waterdog.waterdogpe.network.connection.client.ClientConnection;
 import dev.waterdog.waterdogpe.network.connection.codec.batch.BedrockBatchDecoder;
 import dev.waterdog.waterdogpe.network.connection.codec.batch.BedrockBatchEncoder;
+import dev.waterdog.waterdogpe.network.connection.codec.compression.CompressionType;
 import dev.waterdog.waterdogpe.network.connection.codec.packet.BedrockPacketCodec;
 import dev.waterdog.waterdogpe.network.serverinfo.ServerInfo;
 import dev.waterdog.waterdogpe.player.ProxiedPlayer;
@@ -16,13 +17,12 @@ import lombok.RequiredArgsConstructor;
 import org.cloudburstmc.netty.channel.raknet.RakChannel;
 import org.cloudburstmc.netty.channel.raknet.config.RakChannelOption;
 import org.cloudburstmc.netty.channel.raknet.config.RakMetrics;
-import org.nethergames.proxytransport.compression.ZstdCompressionCodec;
+import org.nethergames.proxytransport.compression.ProxyTransportCompressionCodec;
 import org.nethergames.proxytransport.integration.CustomClientEventHandler;
 
 import static dev.waterdog.waterdogpe.network.connection.codec.initializer.ProxiedSessionInitializer.*;
 
 public class TransportChannelInitializer extends ChannelInitializer<Channel> {
-    private static final int ZSTD_COMPRESSION_LEVEL = 3;
 
     private final ProxiedPlayer player;
     private final ServerInfo serverInfo;
@@ -39,6 +39,7 @@ public class TransportChannelInitializer extends ChannelInitializer<Channel> {
     @Override
     protected void initChannel(Channel channel) {
         int rakVersion = this.player.getProtocol().getRaknetVersion();
+        CompressionType compression = this.player.getProxy().getConfiguration().getCompression();
 
         channel.attr(PacketDirection.ATTRIBUTE).set(PacketDirection.FROM_SERVER);
 
@@ -58,7 +59,7 @@ public class TransportChannelInitializer extends ChannelInitializer<Channel> {
 
         ClientConnection connection = this.createConnection(channel);
         channel.pipeline()
-                .addLast(ZstdCompressionCodec.NAME, new ZstdCompressionCodec(ZSTD_COMPRESSION_LEVEL, connection))
+                .addLast(ProxyTransportCompressionCodec.NAME, new ProxyTransportCompressionCodec(getCompressionStrategy(compression, rakVersion, true), false))
                 .addLast(BedrockBatchDecoder.NAME, BATCH_DECODER)
                 .addLast(BedrockBatchEncoder.NAME, new BedrockBatchEncoder())
                 .addLast(BedrockPacketCodec.NAME, getPacketCodec(rakVersion));
