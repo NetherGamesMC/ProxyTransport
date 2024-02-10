@@ -2,11 +2,13 @@ package org.nethergames.proxytransport.impl;
 
 import dev.waterdog.waterdogpe.network.connection.client.BedrockClientConnection;
 import dev.waterdog.waterdogpe.network.connection.codec.packet.BedrockPacketCodec;
+import dev.waterdog.waterdogpe.network.protocol.ProtocolVersion;
 import dev.waterdog.waterdogpe.network.protocol.handler.ProxyBatchBridge;
 import dev.waterdog.waterdogpe.network.serverinfo.ServerInfo;
 import dev.waterdog.waterdogpe.player.ProxiedPlayer;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import lombok.NonNull;
 import lombok.extern.log4j.Log4j2;
@@ -14,10 +16,15 @@ import org.cloudburstmc.protocol.bedrock.codec.BedrockCodec;
 import org.cloudburstmc.protocol.bedrock.codec.BedrockCodecHelper;
 import org.cloudburstmc.protocol.bedrock.netty.BedrockBatchWrapper;
 import org.cloudburstmc.protocol.bedrock.netty.BedrockPacketWrapper;
+import org.cloudburstmc.protocol.bedrock.netty.codec.FrameIdCodec;
+import org.cloudburstmc.protocol.bedrock.netty.codec.compression.CompressionCodec;
+import org.cloudburstmc.protocol.bedrock.netty.codec.compression.CompressionStrategy;
 import org.cloudburstmc.protocol.bedrock.packet.BedrockPacket;
 import org.cloudburstmc.protocol.bedrock.packet.NetworkStackLatencyPacket;
 import org.cloudburstmc.protocol.bedrock.packet.TickSyncPacket;
+import org.nethergames.proxytransport.compression.ProxyTransportCompressionCodec;
 
+import javax.crypto.SecretKey;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -123,6 +130,24 @@ public class TransportClientConnection extends BedrockClientConnection {
         }
 
         wrapper.release();
+    }
+
+    @Override
+    public void setCompressionStrategy(CompressionStrategy strategy) {
+        super.setCompressionStrategy(strategy);
+
+        boolean needsPrefix = this.getPlayer().getProtocol().isAfterOrEqual(ProtocolVersion.MINECRAFT_PE_1_20_60);
+        ChannelHandler handler = this.channel.pipeline().get(CompressionCodec.NAME);
+        if (handler == null) {
+            this.channel.pipeline().addAfter(FrameIdCodec.NAME, CompressionCodec.NAME, new ProxyTransportCompressionCodec(strategy, needsPrefix));
+        } else {
+            this.channel.pipeline().replace(CompressionCodec.NAME, CompressionCodec.NAME, new ProxyTransportCompressionCodec(strategy, needsPrefix));
+        }
+    }
+
+    @Override
+    public void enableEncryption(SecretKey secretKey) {
+        // Encryption is generally not good in server-to-server scenarios
     }
 
     @Override
