@@ -1,23 +1,28 @@
 package org.nethergames.proxytransport.impl;
 
 import dev.waterdog.waterdogpe.network.connection.client.BedrockClientConnection;
-import dev.waterdog.waterdogpe.network.connection.codec.BedrockBatchWrapper;
-import dev.waterdog.waterdogpe.network.connection.codec.compression.CompressionAlgorithm;
 import dev.waterdog.waterdogpe.network.connection.codec.packet.BedrockPacketCodec;
+import dev.waterdog.waterdogpe.network.protocol.ProtocolVersion;
 import dev.waterdog.waterdogpe.network.protocol.handler.ProxyBatchBridge;
 import dev.waterdog.waterdogpe.network.serverinfo.ServerInfo;
 import dev.waterdog.waterdogpe.player.ProxiedPlayer;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import lombok.NonNull;
 import lombok.extern.log4j.Log4j2;
 import org.cloudburstmc.protocol.bedrock.codec.BedrockCodec;
 import org.cloudburstmc.protocol.bedrock.codec.BedrockCodecHelper;
+import org.cloudburstmc.protocol.bedrock.netty.BedrockBatchWrapper;
 import org.cloudburstmc.protocol.bedrock.netty.BedrockPacketWrapper;
+import org.cloudburstmc.protocol.bedrock.netty.codec.compression.CompressionCodec;
+import org.cloudburstmc.protocol.bedrock.netty.codec.compression.CompressionStrategy;
 import org.cloudburstmc.protocol.bedrock.packet.BedrockPacket;
 import org.cloudburstmc.protocol.bedrock.packet.NetworkStackLatencyPacket;
 import org.cloudburstmc.protocol.bedrock.packet.TickSyncPacket;
+import org.nethergames.proxytransport.compression.FrameIdCodec;
+import org.nethergames.proxytransport.compression.ProxyTransportCompressionCodec;
 
 import javax.crypto.SecretKey;
 import java.util.ArrayList;
@@ -100,26 +105,36 @@ public class TransportClientConnection extends BedrockClientConnection {
         }
     }
 
-    @Override
-    public void sendPacket(BedrockPacket packet) {
-        this.sendPacket(BedrockBatchWrapper.create(getSubClientId(), packet));
-    }
-
-    @Override
-    public void sendPacketImmediately(BedrockPacket packet) {
-        this.sendPacket(BedrockBatchWrapper.create(getSubClientId(), packet));
-    }
-
-    @Override
-    public void sendPacket(BedrockBatchWrapper wrapper) {
-        packetSendingLimit.set(this.packetSendingLimit.get() + wrapper.getPackets().size());
+    private boolean increaseRateLimit(int value) {
+        packetSendingLimit.set(this.packetSendingLimit.get() + value);
 
         if (packetSendingLimit.get() >= MAX_UPSTREAM_PACKETS) {
             if (packetSendingLock.compareAndSet(false, true)) {
                 getPlayer().getLogger().warning(getPlayer().getName() + " sent too many packets (" + packetSendingLimit.get() + "/s), disconnecting.");
                 getPlayer().getConnection().disconnect("§cToo many packets!");
             }
-        } else if (!packetSendingLock.get()) {
+        } else return !packetSendingLock.get();
+
+        return false;
+    }
+
+    @Override
+    public void sendPacket(BedrockPacket packet) {
+        if (this.increaseRateLimit(1)) {
+            super.sendPacket(packet);
+        }
+    }
+
+    @Override
+    public void sendPacketImmediately(BedrockPacket packet) {
+        if (this.increaseRateLimit(1)) {
+            super.sendPacketImmediately(packet);
+        }
+    }
+
+    @Override
+    public void sendPacket(BedrockBatchWrapper wrapper) {
+        if (this.increaseRateLimit(wrapper.getPackets().size())) {
             super.sendPacket(wrapper);
             return;
         }
@@ -128,8 +143,16 @@ public class TransportClientConnection extends BedrockClientConnection {
     }
 
     @Override
-    public void setCompression(CompressionAlgorithm compression) {
-        // We do not want to change compression because we have our own logic
+    public void setCompressionStrategy(CompressionStrategy strategy) {
+        super.setCompressionStrategy(strategy);
+
+        boolean needsPrefix = this.getPlayer().getProtocol().isAfterOrEqual(ProtocolVersion.MINECRAFT_PE_1_20_60);
+        ChannelHandler handler = this.channel.pipeline().get(CompressionCodec.NAME);
+        if (handler == null) {
+            this.channel.pipeline().addAfter(FrameIdCodec.NAME, CompressionCodec.NAME, new ProxyTransportCompressionCodec(strategy, needsPrefix));
+        } else {
+            this.channel.pipeline().replace(CompressionCodec.NAME, CompressionCodec.NAME, new ProxyTransportCompressionCodec(strategy, needsPrefix));
+        }
     }
 
     @Override
