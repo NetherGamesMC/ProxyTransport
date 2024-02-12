@@ -5,6 +5,7 @@ import dev.waterdog.waterdogpe.network.PacketDirection;
 import dev.waterdog.waterdogpe.network.connection.client.ClientConnection;
 import dev.waterdog.waterdogpe.network.connection.codec.batch.BedrockBatchDecoder;
 import dev.waterdog.waterdogpe.network.connection.codec.batch.BedrockBatchEncoder;
+import dev.waterdog.waterdogpe.network.connection.codec.client.ClientPacketQueue;
 import dev.waterdog.waterdogpe.network.connection.codec.compression.CompressionType;
 import dev.waterdog.waterdogpe.network.connection.codec.packet.BedrockPacketCodec;
 import dev.waterdog.waterdogpe.network.serverinfo.ServerInfo;
@@ -17,6 +18,8 @@ import lombok.RequiredArgsConstructor;
 import org.cloudburstmc.netty.channel.raknet.RakChannel;
 import org.cloudburstmc.netty.channel.raknet.config.RakChannelOption;
 import org.cloudburstmc.netty.channel.raknet.config.RakMetrics;
+import org.cloudburstmc.protocol.bedrock.netty.codec.compression.CompressionCodec;
+import org.nethergames.proxytransport.compression.FrameIdCodec;
 import org.nethergames.proxytransport.compression.ProxyTransportCompressionCodec;
 import org.nethergames.proxytransport.integration.CustomClientEventHandler;
 
@@ -56,14 +59,15 @@ public class TransportChannelInitializer extends ChannelInitializer<Channel> {
                 .addLast(FRAME_DECODER, new LengthFieldBasedFrameDecoder(Integer.MAX_VALUE, 0, 4, 0, 4))
                 .addLast(FRAME_ENCODER, new LengthFieldPrepender(4));
 
-
-        ClientConnection connection = this.createConnection(channel);
         channel.pipeline()
-                .addLast(ProxyTransportCompressionCodec.NAME, new ProxyTransportCompressionCodec(getCompressionStrategy(compression, rakVersion, true), false))
+                .addLast(FrameIdCodec.NAME, new FrameIdCodec())
+                .addLast(CompressionCodec.NAME, new ProxyTransportCompressionCodec(getCompressionStrategy(compression, rakVersion, true), false))
                 .addLast(BedrockBatchDecoder.NAME, BATCH_DECODER)
                 .addLast(BedrockBatchEncoder.NAME, new BedrockBatchEncoder())
-                .addLast(BedrockPacketCodec.NAME, getPacketCodec(rakVersion));
+                .addLast(BedrockPacketCodec.NAME, getPacketCodec(rakVersion))
+                .addLast(ClientPacketQueue.NAME, new ClientPacketQueue());
 
+        ClientConnection connection = this.createConnection(channel);
         if (connection instanceof ChannelHandler handler) { // For reference: This will take care of the packets received being handled.
             channel.pipeline().addLast(ClientConnection.NAME, handler);
         }

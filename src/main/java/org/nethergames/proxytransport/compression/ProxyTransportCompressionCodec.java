@@ -5,7 +5,9 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import org.cloudburstmc.protocol.bedrock.data.CompressionAlgorithm;
+import org.cloudburstmc.protocol.bedrock.data.PacketCompressionAlgorithm;
 import org.cloudburstmc.protocol.bedrock.netty.BedrockBatchWrapper;
+import org.cloudburstmc.protocol.bedrock.netty.codec.compression.BatchCompression;
 import org.cloudburstmc.protocol.bedrock.netty.codec.compression.CompressionStrategy;
 
 import java.util.List;
@@ -23,28 +25,31 @@ public class ProxyTransportCompressionCodec extends ProxiedCompressionCodec {
         if (msg.getCompressed() == null && msg.getUncompressed() == null) {
             throw new IllegalStateException("Batch was not encoded before");
         } else if (msg.getCompressed() != null && !msg.isModified()) { // already compressed
-            if (this.prefixed) {
-                this.onPassedThrough(ctx, msg);
-                out.add(msg.retain());
-            } else { // we need to prefix the compressed data
+            if (!this.prefixed) { // we need to prefix the compressed data
                 CompositeByteBuf buf = ctx.alloc().compositeDirectBuffer(2);
                 buf.addComponent(true, ctx.alloc().ioBuffer(1).writeByte(getCompressionHeader(msg.getAlgorithm())));
                 buf.addComponent(true, msg.getCompressed().retainedSlice());
-
-                this.onPassedThrough(ctx, msg);
-                out.add(buf.retain());
+                msg.setCompressed(buf, msg.getAlgorithm());
             }
+
+            this.onPassedThrough(ctx, msg);
+            out.add(msg.retain());
         } else {
-            ByteBuf compressed = this.zstdCompression.encode(ctx, msg.getUncompressed());
+            BatchCompression compression = this.getStrategy().getCompression(msg);
+            if (!compression.getAlgorithm().equals(PacketCompressionAlgorithm.NONE)) {
+                compression = this.zstdCompression;
+            }
+
+            ByteBuf compressed = compression.encode(ctx, msg.getUncompressed());
 
             try {
                 ByteBuf outBuf;
 
                 outBuf = ctx.alloc().ioBuffer(1 + compressed.readableBytes());
-                outBuf.writeByte(this.getCompressionHeader(this.zstdCompression.getAlgorithm()));
+                outBuf.writeByte(this.getCompressionHeader(compression.getAlgorithm()));
                 outBuf.writeBytes(compressed);
 
-                msg.setCompressed(outBuf, this.zstdCompression.getAlgorithm());
+                msg.setCompressed(outBuf, compression.getAlgorithm());
             } finally {
                 compressed.release();
             }
@@ -59,7 +64,7 @@ public class ProxyTransportCompressionCodec extends ProxiedCompressionCodec {
             return -2;
         }
 
-        return -1;
+        return super.getCompressionHeader0(algorithm);
     }
 
     protected CompressionAlgorithm getCompressionAlgorithm0(byte header) {
@@ -67,6 +72,6 @@ public class ProxyTransportCompressionCodec extends ProxiedCompressionCodec {
             return ProxyTransportAlgorithm.ZSTD;
         }
 
-        return null;
+        return super.getCompressionAlgorithm0(header);
     }
 }

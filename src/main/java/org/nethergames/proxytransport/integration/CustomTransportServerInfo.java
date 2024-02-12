@@ -47,19 +47,18 @@ public class CustomTransportServerInfo extends ServerInfo {
         EventLoop eventLoop = proxiedPlayer.getProxy().getWorkerEventLoopGroup().next();
         Promise<ClientConnection> promise = eventLoop.newPromise();
 
-        Bootstrap b = new Bootstrap()
+        new Bootstrap()
                 .group(downstreamLoopGroup)
                 .handler(new TransportChannelInitializer(proxiedPlayer, this, promise))
                 .localAddress(new InetSocketAddress("0.0.0.0", 0))
                 .channel(getProperSocketChannel())
-                .remoteAddress(this.getAddress());
-
-        b.connect().addListener((ChannelFuture future) -> {
-            if (!future.isSuccess()) {
-                promise.tryFailure(future.cause());
-                future.channel().close();
-            }
-        });
+                .remoteAddress(this.getAddress())
+                .connect().addListener((ChannelFuture future) -> {
+                    if (!future.isSuccess()) {
+                        promise.tryFailure(future.cause());
+                        future.channel().close();
+                    }
+                });
 
         return promise;
     }
