@@ -12,6 +12,13 @@ public class ProxyTransport extends Plugin {
     public void onStartup() {
         ProtocolCodecs.addUpdater(new CodecUpdater());
 
+        try {
+            Class.forName("io.netty.incubator.codec.quic.QuicheNativeStaticallyReferencedJniMethods");
+            getLogger().info("QUIC is supported");
+        } catch (ClassNotFoundException e) {
+            getLogger().info("QUIC is not supported / shading failed");
+        }
+
         getLogger().info("ProxyTransport was started.");
         getLogger().info("Registered type with name {}", QuicTransportServerInfo.TYPE.getIdentifier());
         getLogger().info("Registered type with name {}", TcpTransportServerInfo.TYPE.getIdentifier());
