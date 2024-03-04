@@ -22,7 +22,7 @@ import org.nethergames.proxytransport.impl.TransportChannelInitializer;
 import java.net.InetSocketAddress;
 import java.util.concurrent.ThreadFactory;
 
-public class CustomTransportServerInfo extends ServerInfo {
+public class TcpTransportServerInfo extends ServerInfo {
     public static final int availableCPU = Runtime.getRuntime().availableProcessors();
     public static final ThreadFactory downstreamThreadFactory = new NamedThreadFactory("TCP-Downstream %s");
     public static final EventLoopGroup downstreamLoopGroup = Epoll.isAvailable() ? new EpollEventLoopGroup(availableCPU, downstreamThreadFactory) : new NioEventLoopGroup(availableCPU, downstreamThreadFactory);
@@ -30,10 +30,10 @@ public class CustomTransportServerInfo extends ServerInfo {
     public static final String TYPE_IDENT = "tcp";
     public static final ServerInfoType TYPE = ServerInfoType.builder()
             .identifier(TYPE_IDENT)
-            .serverInfoFactory(CustomTransportServerInfo::new)
+            .serverInfoFactory(TcpTransportServerInfo::new)
             .register();
 
-    public CustomTransportServerInfo(String serverName, InetSocketAddress address, InetSocketAddress publicAddress) {
+    public TcpTransportServerInfo(String serverName, InetSocketAddress address, InetSocketAddress publicAddress) {
         super(serverName, address, publicAddress);
     }
 

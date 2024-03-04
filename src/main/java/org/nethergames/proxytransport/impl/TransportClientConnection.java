@@ -10,6 +10,11 @@ import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.epoll.EpollSocketChannel;
+import io.netty.channel.socket.nio.NioSocketChannel;
+import io.netty.incubator.codec.quic.QuicChannel;
+import io.netty.incubator.codec.quic.QuicConnectionStats;
+import io.netty.util.concurrent.Future;
 import lombok.NonNull;
 import lombok.extern.log4j.Log4j2;
 import org.cloudburstmc.protocol.bedrock.codec.BedrockCodec;
@@ -46,7 +51,7 @@ public class TransportClientConnection extends BedrockClientConnection {
 
     private final Channel channel;
     private long lastPingTimestamp;
-    private long latency;
+    private long latency; // Latency in microseconds
 
     private final List<ScheduledFuture<?>> scheduledTasks = new ArrayList<>();
 
@@ -56,7 +61,7 @@ public class TransportClientConnection extends BedrockClientConnection {
         this.channel = channel;
         this.channel.closeFuture().addListener(future -> cleanActiveChannels());
 
-        scheduledTasks.add(channel.eventLoop().scheduleAtFixedRate(this::sendAcknowledge, PING_CYCLE_TIME, PING_CYCLE_TIME, TimeUnit.SECONDS));
+        scheduledTasks.add(channel.eventLoop().scheduleAtFixedRate(this::collectStats, PING_CYCLE_TIME, PING_CYCLE_TIME, TimeUnit.SECONDS));
         scheduledTasks.add(channel.eventLoop().scheduleAtFixedRate(() -> packetSendingLimit.set(0), 1, 1, TimeUnit.SECONDS));
     }
 
@@ -100,7 +105,8 @@ public class TransportClientConnection extends BedrockClientConnection {
                 wrapper.release(); // release
                 batch.modify();
 
-                receiveAcknowledge();
+                this.latency = (System.nanoTime() - this.lastPingTimestamp) / 2000;
+                this.broadcastPing();
             }
         }
     }
@@ -165,25 +171,37 @@ public class TransportClientConnection extends BedrockClientConnection {
         return latency;
     }
 
-    public void sendAcknowledge() {
+    public void collectStats() {
         var connection = getPlayer().getDownstreamConnection();
         if (connection instanceof TransportClientConnection && connection.getServerInfo().getServerName().equalsIgnoreCase(getServerInfo().getServerName())) {
-            NetworkStackLatencyPacket packet = new NetworkStackLatencyPacket();
-            packet.setTimestamp(0L);
-            packet.setFromServer(true);
+            if (this.channel instanceof NioSocketChannel) {
+                NetworkStackLatencyPacket packet = new NetworkStackLatencyPacket();
+                packet.setTimestamp(0L);
+                packet.setFromServer(true);
 
-            sendPacket(packet);
+                sendPacket(packet);
 
-            lastPingTimestamp = System.currentTimeMillis();
+                this.lastPingTimestamp = System.nanoTime();
+            } else if (this.channel instanceof EpollSocketChannel epollChannel) {
+                this.latency = epollChannel.tcpInfo().rtt() / 2;
+                this.broadcastPing();
+            } else if (this.channel instanceof QuicChannel quicChannel) {
+                quicChannel.collectStats().addListener((Future<QuicConnectionStats> future) -> {
+                    if (future.isSuccess()) {
+                        QuicConnectionStats stats = future.getNow();
+
+                        this.latency = stats.recv();
+                        this.broadcastPing();
+                    }
+                });
+            }
         }
     }
 
-    private void receiveAcknowledge() {
-        latency = (System.currentTimeMillis() - lastPingTimestamp) / 2;
-
+    private void broadcastPing() {
         TickSyncPacket latencyPacket = new TickSyncPacket();
-        latencyPacket.setRequestTimestamp(getPlayer().getPing());
-        latencyPacket.setResponseTimestamp(latency);
+        latencyPacket.setRequestTimestamp(getPlayer().getPing() * 1000);
+        latencyPacket.setResponseTimestamp(this.latency);
 
         sendPacket(latencyPacket);
     }

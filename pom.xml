@@ -42,6 +42,12 @@
             <version>2.0.2-SNAPSHOT</version>
             <scope>provided</scope>
         </dependency>
+        <dependency>
+            <groupId>io.netty.incubator</groupId>
+            <artifactId>netty-incubator-codec-native-quic</artifactId>
+            <version>0.0.57.Final</version>
+            <classifier>linux-x86_64</classifier>
+        </dependency>
     </dependencies>
 
     <build>
