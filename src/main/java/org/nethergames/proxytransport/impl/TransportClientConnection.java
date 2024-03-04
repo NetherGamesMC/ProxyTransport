@@ -51,7 +51,7 @@ public class TransportClientConnection extends BedrockClientConnection {
 
     private final Channel channel;
     private long lastPingTimestamp;
-    private long latency;
+    private long latency; // Latency in microseconds
 
     private final List<ScheduledFuture<?>> scheduledTasks = new ArrayList<>();
 
@@ -105,7 +105,7 @@ public class TransportClientConnection extends BedrockClientConnection {
                 wrapper.release(); // release
                 batch.modify();
 
-                this.latency = (System.currentTimeMillis() - this.lastPingTimestamp) / 2;
+                this.latency = (System.nanoTime() - this.lastPingTimestamp) / 2000;
                 this.broadcastPing();
             }
         }
@@ -181,7 +181,7 @@ public class TransportClientConnection extends BedrockClientConnection {
 
                 sendPacket(packet);
 
-                this.lastPingTimestamp = System.currentTimeMillis();
+                this.lastPingTimestamp = System.nanoTime();
             } else if (this.channel instanceof EpollSocketChannel epollChannel) {
                 this.latency = epollChannel.tcpInfo().rtt() / 2;
                 this.broadcastPing();
@@ -200,7 +200,7 @@ public class TransportClientConnection extends BedrockClientConnection {
 
     private void broadcastPing() {
         TickSyncPacket latencyPacket = new TickSyncPacket();
-        latencyPacket.setRequestTimestamp(getPlayer().getPing());
+        latencyPacket.setRequestTimestamp(getPlayer().getPing() * 1000);
         latencyPacket.setResponseTimestamp(this.latency);
 
         sendPacket(latencyPacket);
