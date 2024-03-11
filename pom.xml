@@ -45,7 +45,7 @@
         <dependency>
             <groupId>io.netty.incubator</groupId>
             <artifactId>netty-incubator-codec-native-quic</artifactId>
-            <version>0.0.57.Final</version>
+            <version>0.0.59.Final</version>
             <classifier>linux-x86_64</classifier>
         </dependency>
     </dependencies>

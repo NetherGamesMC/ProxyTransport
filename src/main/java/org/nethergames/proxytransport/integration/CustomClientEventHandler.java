@@ -1,7 +1,9 @@
 package org.nethergames.proxytransport.integration;
 
 import dev.waterdog.waterdogpe.network.connection.client.ClientConnection;
+import dev.waterdog.waterdogpe.network.connection.handler.ReconnectReason;
 import dev.waterdog.waterdogpe.player.ProxiedPlayer;
+import dev.waterdog.waterdogpe.utils.types.TranslationContainer;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 
@@ -27,9 +29,14 @@ public class CustomClientEventHandler extends ChannelInboundHandlerAdapter {
             return;
         }
 
-        this.player.getLogger().warning("[" + connection.getSocketAddress() + "|" + this.player.getName() + "] - Exception in connection caught", cause);
-        this.player.onDownstreamTimeout(this.connection.getServerInfo());
-
+        this.player.getLogger().warning("[" + connection.getSocketAddress() + "|" + this.player.getName() + "] - exception caught", cause);
         this.connection.disconnect();
+
+        TranslationContainer msg = new TranslationContainer("waterdog.downstream.down", this.connection.getServerInfo().getServerName(), cause.getMessage());
+        if (this.player.sendToFallback(this.connection.getServerInfo(), ReconnectReason.EXCEPTION, cause.getMessage())) {
+            this.player.sendMessage(msg);
+        } else {
+            this.player.disconnect(msg);
+        }
     }
 }

@@ -1,5 +1,6 @@
 package org.nethergames.proxytransport.integration;
 
+import dev.waterdog.waterdogpe.logger.MainLogger;
 import dev.waterdog.waterdogpe.network.connection.client.ClientConnection;
 import dev.waterdog.waterdogpe.network.serverinfo.ServerInfo;
 import dev.waterdog.waterdogpe.network.serverinfo.ServerInfoType;
@@ -51,8 +52,9 @@ public class QuicTransportServerInfo extends ServerInfo {
         EventLoop eventLoop = proxiedPlayer.getProxy().getWorkerEventLoopGroup().next();
         Promise<ClientConnection> promise = eventLoop.newPromise();
 
-        this.createServerConnection(eventLoop, this.getAddress()).addListener((Future<QuicChannel> future) -> {
+        this.createServerConnection(eventLoop, proxiedPlayer.getLogger(), this.getAddress()).addListener((Future<QuicChannel> future) -> {
             if (future.isSuccess()) {
+                proxiedPlayer.getLogger().debug("Creating stream for " + this.getServerName() + " server");
                 QuicChannel quicChannel = future.getNow();
 
                 quicChannel.createStream(QuicStreamType.BIDIRECTIONAL, new TransportChannelInitializer(proxiedPlayer, this, promise)).addListener((Future<QuicStreamChannel> streamFuture) -> {
@@ -69,13 +71,15 @@ public class QuicTransportServerInfo extends ServerInfo {
         return promise;
     }
 
-    private Future<QuicChannel> createServerConnection(EventLoopGroup eventLoopGroup, InetSocketAddress address) {
+    private Future<QuicChannel> createServerConnection(EventLoopGroup eventLoopGroup, MainLogger logger, InetSocketAddress address) {
         EventLoop eventLoop = eventLoopGroup.next();
 
         if (this.serverConnections.containsKey(address)) {
+            logger.info("Reusing connection to " + address + " for " + this.getServerName() + " server");
             return this.serverConnections.get(address);
         }
 
+        logger.info("Creating connection to " + address + " for " + this.getServerName() + " server");
         Promise<QuicChannel> promise = eventLoop.newPromise();
         this.serverConnections.put(address, promise);
 
@@ -96,25 +100,35 @@ public class QuicTransportServerInfo extends ServerInfo {
                         QuicChannel.newBootstrap(channelFuture.channel())
                                 .streamHandler(new ChannelInboundHandlerAdapter() {
                                     @Override
-                                    public void channelActive(ChannelHandlerContext ctx) {
+                                    public void channelActive(ChannelHandlerContext ctx) throws Exception {
                                         ctx.close();
                                     }
                                 })
                                 .remoteAddress(address)
+                                .option(QuicChannelOption.QLOG, new QLogConfiguration("/" + this.getServerName() + "-" + System.currentTimeMillis() + ".qlog", this.getServerName(), this.getServerName()))
                                 .connect().addListener((Future<QuicChannel> quicChannelFuture) -> {
                                     if (quicChannelFuture.isSuccess()) {
+                                        logger.debug("Connection to " + address + " for " + this.getServerName() + " server established");
+
                                         QuicChannel quicChannel = quicChannelFuture.getNow();
-                                        quicChannel.closeFuture().addListener(f -> serverConnections.remove(address));
+                                        quicChannel.closeFuture().addListener(f -> {
+                                            logger.debug("Connection to " + address + " for " + this.getServerName() + " server closed");
+                                            this.serverConnections.remove(address);
+                                        });
 
                                         promise.trySuccess(quicChannel);
                                     } else {
+                                        logger.warning("Connection to " + address + " for " + this.getServerName() + " server failed");
+
                                         promise.tryFailure(quicChannelFuture.cause());
                                         channelFuture.channel().close();
+                                        this.serverConnections.remove(address);
                                     }
                                 });
                     } else {
                         promise.tryFailure(channelFuture.cause());
                         channelFuture.channel().close();
+                        this.serverConnections.remove(address);
                     }
                 });
 
