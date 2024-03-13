@@ -100,7 +100,7 @@ public class TransportClientConnection extends BedrockClientConnection {
                 wrapper.release(); // release
                 batch.modify();
 
-                this.latency = (System.nanoTime() - this.lastPingTimestamp) / 2000;
+                this.latency = (System.nanoTime() - this.lastPingTimestamp) / 1000;
                 this.broadcastPing();
             }
         }
