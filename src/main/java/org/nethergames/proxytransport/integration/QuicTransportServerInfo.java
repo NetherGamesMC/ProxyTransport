@@ -105,7 +105,6 @@ public class QuicTransportServerInfo extends ServerInfo {
                                     }
                                 })
                                 .remoteAddress(address)
-                                .option(QuicChannelOption.QLOG, new QLogConfiguration("/" + this.getServerName() + "-" + System.currentTimeMillis() + ".qlog", this.getServerName(), this.getServerName()))
                                 .connect().addListener((Future<QuicChannel> quicChannelFuture) -> {
                                     if (quicChannelFuture.isSuccess()) {
                                         logger.debug("Connection to " + address + " for " + this.getServerName() + " server established");

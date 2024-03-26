@@ -10,6 +10,9 @@ import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
+import io.netty.incubator.codec.quic.QuicConnectionPathStats;
+import io.netty.incubator.codec.quic.QuicStreamChannel;
+import io.netty.util.concurrent.Future;
 import lombok.NonNull;
 import lombok.extern.log4j.Log4j2;
 import org.cloudburstmc.protocol.bedrock.codec.BedrockCodec;
@@ -45,8 +48,8 @@ public class TransportClientConnection extends BedrockClientConnection {
     private final AtomicBoolean packetSendingLock = new AtomicBoolean(false); // Lock packets from being sent to downstream servers.
 
     private final Channel channel;
-    private long lastPingTimestamp;
-    private long latency; // Latency in microseconds
+    private long lastPingTimestamp = -1;
+    private long latency = 0; // Latency in microseconds
 
     private final List<ScheduledFuture<?>> scheduledTasks = new ArrayList<>();
 
@@ -100,8 +103,10 @@ public class TransportClientConnection extends BedrockClientConnection {
                 wrapper.release(); // release
                 batch.modify();
 
-                this.latency = (System.nanoTime() - this.lastPingTimestamp) / 1000;
-                this.broadcastPing();
+                if (this.lastPingTimestamp != -1) {
+                    this.latency = (System.nanoTime() - this.lastPingTimestamp) / 1000;
+                    this.broadcastPing();
+                }
             }
         }
     }
@@ -173,13 +178,22 @@ public class TransportClientConnection extends BedrockClientConnection {
     public void collectStats() {
         var connection = getPlayer().getDownstreamConnection();
         if (connection instanceof TransportClientConnection && connection.getServerInfo().getServerName().equalsIgnoreCase(getServerInfo().getServerName())) {
-            NetworkStackLatencyPacket packet = new NetworkStackLatencyPacket();
-            packet.setTimestamp(0L);
-            packet.setFromServer(true);
+            if (this.channel instanceof QuicStreamChannel quicChannel) {
+                quicChannel.parent().collectPathStats(0).addListener((Future<QuicConnectionPathStats> quicChannelFuture) -> {
+                    if (quicChannelFuture.isSuccess()) {
+                        this.latency = quicChannelFuture.getNow().rtt() / 1000; // convert to nanoseconds to microseconds
+                        this.broadcastPing();
+                    }
+                });
+            } else {
+                NetworkStackLatencyPacket packet = new NetworkStackLatencyPacket();
+                packet.setTimestamp(0L);
+                packet.setFromServer(true);
 
-            sendPacket(packet);
+                sendPacket(packet);
 
-            this.lastPingTimestamp = System.nanoTime();
+                this.lastPingTimestamp = System.nanoTime();
+            }
         }
     }
 
