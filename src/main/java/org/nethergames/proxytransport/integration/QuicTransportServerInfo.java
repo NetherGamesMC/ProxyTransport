@@ -21,7 +21,7 @@ import net.jodah.expiringmap.internal.NamedThreadFactory;
 import org.nethergames.proxytransport.impl.TransportChannelInitializer;
 
 import java.net.InetSocketAddress;
-import java.util.HashMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
@@ -36,7 +36,7 @@ public class QuicTransportServerInfo extends ServerInfo {
             .serverInfoFactory(QuicTransportServerInfo::new)
             .register();
 
-    private final HashMap<InetSocketAddress, Future<QuicChannel>> serverConnections = new HashMap<>();
+    private final ConcurrentHashMap<InetSocketAddress, Future<QuicChannel>> serverConnections = new ConcurrentHashMap<>();
 
     public QuicTransportServerInfo(String serverName, InetSocketAddress address, InetSocketAddress publicAddress) {
         super(serverName, address, publicAddress);
@@ -86,9 +86,12 @@ public class QuicTransportServerInfo extends ServerInfo {
         QuicSslContext sslContext = QuicSslContextBuilder.forClient().trustManager(InsecureTrustManagerFactory.INSTANCE).applicationProtocols("ng").build();
         ChannelHandler codec = new QuicClientCodecBuilder()
                 .sslContext(sslContext)
-                .maxIdleTimeout(5000, TimeUnit.MILLISECONDS)
+                .maxIdleTimeout(2000, TimeUnit.MILLISECONDS)
                 .initialMaxData(10000000)
                 .initialMaxStreamDataBidirectionalLocal(1000000)
+                .maxRecvUdpPayloadSize(1350)
+                .maxSendUdpPayloadSize(1350)
+                .activeMigration(false)
                 .build();
 
         new Bootstrap()
