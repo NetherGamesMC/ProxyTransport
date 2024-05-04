@@ -1,6 +1,6 @@
 # Proxy Transport
 
-Proxy Transport is a TCP transport protocol implementation to replace the inefficient RakNet protocol implementation
+Proxy Transport is a TCP & QUIC transport protocol implementation to replace the inefficient RakNet protocol implementation
 between proxies and downstream servers.
 
 ## Format
@@ -8,17 +8,14 @@ between proxies and downstream servers.
 Packet frames have the following format:
 
 - frameLength: int
-- leadingByte: byte (compression indicator. 0 is Zlib, 1 is ZSTD)
-- buffer: ByteBuf (the packets are formatted in the MCPE batch packet format)
+- buffer: ByteBuf (the packets are formatted in the MCPE batch packet format with compression type byte in front of it)
 
-## Dynamic Compression
+## Compression
 
-The `leadingByte` (internally referred to as `compressionType`) gives us the ability to use faster compression methods
-than zlib if possible.
-
-### Compression
 ProxyTransport leverages different compression algorithms to improve bandwidth usage and CPU Usage.
-The three algorithms supported are: Zlib, Zstd, Snappy
+Three compression algorithms are supported: Zlib, Snappy, and Zstd.
+
+The compression byte has been extended with type `254` to support ZSTD as compression algorithm.
 
 #### General rule
 Packets are bi-directional. A packet can be sent from the client (or proxy) to the downstream server (Serverbound) or from the downstream server to the client (Clientbound).
