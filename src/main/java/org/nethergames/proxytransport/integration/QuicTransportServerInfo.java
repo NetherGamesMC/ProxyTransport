@@ -115,6 +115,7 @@ public class QuicTransportServerInfo extends ServerInfo {
                                         QuicChannel quicChannel = quicChannelFuture.getNow();
                                         quicChannel.closeFuture().addListener(f -> {
                                             logger.debug("Connection to " + address + " for " + this.getServerName() + " server closed");
+                                            channelFuture.channel().close();
                                             this.serverConnections.remove(address);
                                         });
 
