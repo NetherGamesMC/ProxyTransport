@@ -13,6 +13,7 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.incubator.codec.quic.QuicConnectionPathStats;
 import io.netty.incubator.codec.quic.QuicStreamChannel;
 import io.netty.util.concurrent.Future;
+import lombok.Getter;
 import lombok.NonNull;
 import lombok.extern.log4j.Log4j2;
 import org.cloudburstmc.protocol.bedrock.codec.BedrockCodec;
@@ -50,6 +51,14 @@ public class TransportClientConnection extends BedrockClientConnection {
     private final Channel channel;
     private long lastPingTimestamp = -1;
     private long latency = 0; // Latency in microseconds
+
+    private long lastSentPackets = 0;
+    private long lastLostPackets = 0;
+    /**
+     *  Get the lost percentage of packets sent to the server as a 3 decimal integer.
+     */
+    @Getter
+    private Integer lostPercentage = null;
 
     private final List<ScheduledFuture<?>> scheduledTasks = new ArrayList<>();
 
@@ -175,13 +184,37 @@ public class TransportClientConnection extends BedrockClientConnection {
         return this.latency;
     }
 
+    private void setLostPercentage(long lostPackets, long sentPackets) {
+        long lost = lostPackets - this.lastLostPackets;
+        long sent = sentPackets - this.lastSentPackets;
+        this.lastLostPackets = lostPackets;
+        this.lastSentPackets = sentPackets;
+
+        if (sent == 0) {
+            this.lostPercentage = 0;
+            return;
+        }
+
+        long lostPercentage = Math.round(((double) (lost * 100) / sent) * 1000);
+
+        if (lostPercentage > 65535) {
+            this.lostPercentage = 65535;
+            return;
+        }
+
+        this.lostPercentage = (int) lostPercentage;
+    }
+
     public void collectStats() {
         var connection = getPlayer().getDownstreamConnection();
         if (connection instanceof TransportClientConnection && connection.getServerInfo().getServerName().equalsIgnoreCase(getServerInfo().getServerName())) {
             if (this.channel instanceof QuicStreamChannel quicChannel) {
                 quicChannel.parent().collectPathStats(0).addListener((Future<QuicConnectionPathStats> quicChannelFuture) -> {
                     if (quicChannelFuture.isSuccess()) {
-                        this.latency = quicChannelFuture.getNow().rtt() / 1000; // convert to nanoseconds to microseconds
+                        QuicConnectionPathStats quicStats = quicChannelFuture.getNow();
+
+                        this.latency = quicStats.rtt() / 1000; // convert to nanoseconds to microsecond
+                        this.setLostPercentage(quicStats.lost(), quicStats.sent());
                         this.broadcastPing();
                     }
                 });

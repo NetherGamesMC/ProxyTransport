@@ -1,7 +1,6 @@
 package org.nethergames.proxytransport.impl;
 
 import dev.waterdog.waterdogpe.network.NetworkMetrics;
-import dev.waterdog.waterdogpe.network.PacketDirection;
 import dev.waterdog.waterdogpe.network.connection.client.ClientConnection;
 import dev.waterdog.waterdogpe.network.connection.codec.batch.BedrockBatchDecoder;
 import dev.waterdog.waterdogpe.network.connection.codec.batch.BedrockBatchEncoder;
@@ -16,8 +15,9 @@ import io.netty.handler.codec.LengthFieldPrepender;
 import io.netty.util.concurrent.Promise;
 import lombok.RequiredArgsConstructor;
 import org.cloudburstmc.netty.channel.raknet.RakChannel;
+import org.cloudburstmc.netty.channel.raknet.config.RakChannelMetrics;
 import org.cloudburstmc.netty.channel.raknet.config.RakChannelOption;
-import org.cloudburstmc.netty.channel.raknet.config.RakMetrics;
+import org.cloudburstmc.protocol.bedrock.PacketDirection;
 import org.cloudburstmc.protocol.bedrock.netty.codec.compression.CompressionCodec;
 import org.nethergames.proxytransport.compression.FrameIdCodec;
 import org.nethergames.proxytransport.compression.ProxyTransportCompressionCodec;
@@ -44,14 +44,14 @@ public class TransportChannelInitializer extends ChannelInitializer<Channel> {
         int rakVersion = this.player.getProtocol().getRaknetVersion();
         CompressionType compression = this.player.getProxy().getConfiguration().getCompression();
 
-        channel.attr(PacketDirection.ATTRIBUTE).set(PacketDirection.FROM_SERVER);
+        channel.attr(PacketDirection.ATTRIBUTE).set(PacketDirection.SERVER_BOUND);
 
         NetworkMetrics metrics = this.player.getProxy().getNetworkMetrics();
         if (metrics != null) {
             channel.attr(NetworkMetrics.ATTRIBUTE).set(metrics);
         }
 
-        if (metrics instanceof RakMetrics rakMetrics && channel instanceof RakChannel) {
+        if (metrics instanceof RakChannelMetrics rakMetrics && channel instanceof RakChannel) {
             channel.config().setOption(RakChannelOption.RAK_METRICS, rakMetrics);
         }
 
@@ -70,6 +70,10 @@ public class TransportChannelInitializer extends ChannelInitializer<Channel> {
         ClientConnection connection = this.createConnection(channel);
         if (connection instanceof ChannelHandler handler) { // For reference: This will take care of the packets received being handled.
             channel.pipeline().addLast(ClientConnection.NAME, handler);
+        }
+
+        if (connection.getPacketDirection() != PacketDirection.SERVER_BOUND) {
+            throw new IllegalStateException("Client connection must have a server-bound packet direction");
         }
 
         channel.pipeline()
